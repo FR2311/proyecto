@@ -212,13 +212,13 @@
 
   <div class="sidebar-overlay"></div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="supabase-api.js"></script>
+  <script src="supabase-api.js?v=auth-session-fix"></script>
   <script src="app.js"></script>
   <script src="colorpicker.js"></script>
   <script src="sidebar.js"></script>
   <script>
     (async function () {
-      const session = await protegerPagina();
+      const session = await window.protegerPagina();
       if (session) initDashboard();
     })();
   </script>

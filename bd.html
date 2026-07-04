@@ -148,7 +148,7 @@
 
 <div class="sidebar-overlay"></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="supabase-api.js"></script>
+<script src="supabase-api.js?v=auth-session-fix"></script>
 <script src="app.js"></script>
 <script>
   function valorMedicion(item, nombres) {
@@ -224,7 +224,7 @@
   }
 
   (async function () {
-    const session = await protegerPagina();
+    const session = await window.protegerPagina();
     if (!session) return;
 
     await cargarDatosBD();

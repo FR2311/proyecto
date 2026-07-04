@@ -101,7 +101,7 @@
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="supabase-api.js"></script>
+  <script src="supabase-api.js?v=auth-session-fix"></script>
   <script>
     function destinoPostLogin() {
       const params = new URLSearchParams(window.location.search);
@@ -121,7 +121,7 @@
     }
 
     async function redirigirSiYaHaySesion() {
-      const session = await obtenerSesionActual();
+      const session = await window.obtenerSesionActual();
       if (session) window.location.href = destinoPostLogin();
     }
 
@@ -138,10 +138,7 @@
       submit.textContent = 'Ingresando...';
 
       try {
-        const { error } = await supabase.auth.signInWithPassword({
-          email,
-          password
-        });
+        const { error } = await window.iniciarSesion(email, password);
 
         if (error) {
           mostrarErrorLogin(error.message || 'No se pudo iniciar sesion.');

@@ -90,18 +90,21 @@ function obtenerClienteSupabase() {
   return _supabaseClient;
 }
 
-async function obtenerSesionActual(options = {}) {
-  const client = obtenerClienteSupabase();
-  const { data, error } = await client.auth.getSession();
+async function obtenerSesionActual() {
+  try {
+    const supabase = obtenerClienteSupabase();
+    const { data, error } = await supabase.auth.getSession();
 
-  if (error) throw error;
+    if (error) {
+      console.error("Error obteniendo sesión:", error);
+      return null;
+    }
 
-  const session = data?.session || null;
-  if (!session && options.redirectIfMissing) {
-    redirigirALogin();
+    return data.session;
+  } catch (error) {
+    console.error("Error obteniendo sesión:", error);
+    return null;
   }
-
-  return session;
 }
 
 function _redirectActual() {
@@ -117,20 +120,36 @@ function redirigirALogin() {
 }
 
 async function protegerPagina() {
-  return obtenerSesionActual({ redirectIfMissing: true });
+  const session = await obtenerSesionActual();
+
+  if (!session) {
+    redirigirALogin();
+    return null;
+  }
+
+  return session;
+}
+
+async function iniciarSesion(email, password) {
+  const supabase = obtenerClienteSupabase();
+  return supabase.auth.signInWithPassword({
+    email,
+    password
+  });
 }
 
 async function cerrarSesion() {
-  const client = obtenerClienteSupabase();
-  const { error } = await client.auth.signOut();
+  const supabase = obtenerClienteSupabase();
+  const { error } = await supabase.auth.signOut();
   if (error) throw error;
   window.location.href = SUPABASE_LOGIN_PAGE;
 }
 
 async function _getSessionAccessToken() {
-  const session = await obtenerSesionActual({ redirectIfMissing: true });
+  const session = await obtenerSesionActual();
 
   if (!session?.access_token) {
+    redirigirALogin();
     const error = new Error('No hay sesion activa. Redirigiendo a login.html.');
     error.isAuthRedirect = true;
     throw error;
@@ -285,7 +304,12 @@ window.obtenerLecturas24h = obtenerLecturas24h;
 window.obtenerHistorialMediciones = obtenerHistorialMediciones;
 window.obtenerClienteSupabase = obtenerClienteSupabase;
 window.obtenerSesionActual = obtenerSesionActual;
+window.iniciarSesion = iniciarSesion;
 window.protegerPagina = protegerPagina;
 window.cerrarSesion = cerrarSesion;
 
-obtenerClienteSupabase();
+try {
+  obtenerClienteSupabase();
+} catch (error) {
+  console.error('Error inicializando Supabase:', error);
+}
