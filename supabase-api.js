@@ -1,6 +1,7 @@
 /* ===== SUPABASE API PUBLICA ===== */
 const SUPABASE_URL = 'https://mknhezrdzhtangvuzkvq.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_gE7-6xmZFCPrLPbJLEjy2w_4RoC8puw";
+const SUPABASE_LOGIN_PAGE = 'login.html';
 
 const SUPABASE_DEFAULT_TABLES = [
   'historial_mediciones',
@@ -27,6 +28,8 @@ const SUPABASE_VALUE_COLUMNS = {
   humedad: ['humedad', 'hum', 'humidity'],
   presion: ['presion', 'presion_pa', 'pressure', 'pressure_pa']
 };
+
+let _supabaseClient = null;
 
 function _getSupabasePublishableKey() {
   const key = (
@@ -61,6 +64,81 @@ function _getSupabasePublishableKey() {
   return key;
 }
 
+function obtenerClienteSupabase() {
+  const key = _getSupabasePublishableKey();
+
+  if (_supabaseClient) return _supabaseClient;
+
+  if (window.supabase?.auth?.getSession) {
+    _supabaseClient = window.supabase;
+    return _supabaseClient;
+  }
+
+  if (!window.supabase?.createClient) {
+    throw new Error('Falta cargar @supabase/supabase-js antes de supabase-api.js.');
+  }
+
+  _supabaseClient = window.supabase.createClient(SUPABASE_URL, key, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true
+    }
+  });
+
+  window.supabase = _supabaseClient;
+  return _supabaseClient;
+}
+
+async function obtenerSesionActual(options = {}) {
+  const client = obtenerClienteSupabase();
+  const { data, error } = await client.auth.getSession();
+
+  if (error) throw error;
+
+  const session = data?.session || null;
+  if (!session && options.redirectIfMissing) {
+    redirigirALogin();
+  }
+
+  return session;
+}
+
+function _redirectActual() {
+  return `${window.location.pathname}${window.location.search}${window.location.hash}`;
+}
+
+function redirigirALogin() {
+  if (window.location.pathname.endsWith(`/${SUPABASE_LOGIN_PAGE}`)) return;
+
+  const loginUrl = new URL(SUPABASE_LOGIN_PAGE, window.location.href);
+  loginUrl.searchParams.set('redirect', _redirectActual());
+  window.location.href = loginUrl.toString();
+}
+
+async function protegerPagina() {
+  return obtenerSesionActual({ redirectIfMissing: true });
+}
+
+async function cerrarSesion() {
+  const client = obtenerClienteSupabase();
+  const { error } = await client.auth.signOut();
+  if (error) throw error;
+  window.location.href = SUPABASE_LOGIN_PAGE;
+}
+
+async function _getSessionAccessToken() {
+  const session = await obtenerSesionActual({ redirectIfMissing: true });
+
+  if (!session?.access_token) {
+    const error = new Error('No hay sesion activa. Redirigiendo a login.html.');
+    error.isAuthRedirect = true;
+    throw error;
+  }
+
+  return session.access_token;
+}
+
 function _readLocalStorage(key) {
   try {
     return localStorage.getItem(key);
@@ -84,6 +162,7 @@ function _decodeJwtPayload(value) {
 
 async function _supabaseGet(path, params = {}) {
   const key = _getSupabasePublishableKey();
+  const accessToken = await _getSessionAccessToken();
   const url = new URL(path, `${SUPABASE_URL}/rest/v1/`);
 
   Object.entries(params).forEach(([name, value]) => {
@@ -95,7 +174,7 @@ async function _supabaseGet(path, params = {}) {
   const response = await fetch(url.toString(), {
     headers: {
       apikey: key,
-      Authorization: `Bearer ${key}`,
+      Authorization: `Bearer ${accessToken}`,
       Accept: 'application/json'
     }
   });
@@ -142,6 +221,7 @@ async function _queryFirstAvailableTable({ tables, limit = 100, since = null, si
           data: single ? data[0] || null : data
         };
       } catch (error) {
+        if (error.isAuthRedirect) throw error;
         if (error.isSupabaseConfigError) throw error;
         errors.push(`${table}${timeColumn ? `.${timeColumn}` : ''}: ${error.message}`);
       }
@@ -203,3 +283,9 @@ async function obtenerHistorialMediciones() {
 window.obtenerDashboardActual = obtenerDashboardActual;
 window.obtenerLecturas24h = obtenerLecturas24h;
 window.obtenerHistorialMediciones = obtenerHistorialMediciones;
+window.obtenerClienteSupabase = obtenerClienteSupabase;
+window.obtenerSesionActual = obtenerSesionActual;
+window.protegerPagina = protegerPagina;
+window.cerrarSesion = cerrarSesion;
+
+obtenerClienteSupabase();

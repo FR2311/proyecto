@@ -65,7 +65,8 @@
       </div>
       <div class="topbar-right">
         <span class="update-badge">Actualizado: <strong id="ultimaActualizacion">--:--:--</strong></span>
-        <button class="dark-toggle" id="dark-toggle-btn" onclick="toggleDarkMode()"><span class="dt-icon">*</span><span class="dt-label">Claro</span></button>
+        <button class="dark-toggle" id="dark-toggle-btn" onclick="toggleDarkMode()"><span class="dt-icon">☀️</span><span class="dt-label">Claro</span></button>
+        <button class="btn-outline" onclick="cerrarSesion()">Cerrar sesión</button>
         <button class="btn-primary" onclick="cargarDatosBD()">Actualizar</button>
       </div>
     </header>
@@ -146,6 +147,7 @@
 </div>
 
 <div class="sidebar-overlay"></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-api.js"></script>
 <script src="app.js"></script>
 <script>
@@ -221,8 +223,13 @@
     }
   }
 
-  cargarDatosBD();
-  setInterval(cargarDatosBD, 5000);
+  (async function () {
+    const session = await protegerPagina();
+    if (!session) return;
+
+    await cargarDatosBD();
+    setInterval(cargarDatosBD, 5000);
+  })();
 </script>
 <script src="sidebar.js"></script>
 </body>
