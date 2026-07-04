@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Base de Datos en Tiempo Real - Datalogger MVP</title>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #f4f7fb;
+      color: #0b1f4d;
+    }
+
+    header {
+      background: #003b8f;
+      color: white;
+      padding: 24px 40px;
+    }
+
+    header h1 {
+      margin: 0;
+      font-size: 28px;
+    }
+
+    header p {
+      margin: 8px 0 0;
+      opacity: 0.9;
+    }
+
+    main {
+      padding: 30px 40px;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(180px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 14px;
+      padding: 22px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+    }
+
+    .card h3 {
+      margin: 0 0 12px;
+      font-size: 14px;
+      color: #60708f;
+      text-transform: uppercase;
+    }
+
+    .value {
+      font-size: 34px;
+      font-weight: bold;
+      color: #003b8f;
+    }
+
+    .status {
+      display: inline-block;
+      padding: 6px 12px;
+      border-radius: 999px;
+      background: #dff7e8;
+      color: #12823b;
+      font-weight: bold;
+    }
+
+    .meta {
+      margin-bottom: 18px;
+      font-size: 14px;
+      color: #60708f;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+    }
+
+    th, td {
+      padding: 14px 16px;
+      text-align: left;
+      border-bottom: 1px solid #e7ecf3;
+    }
+
+    th {
+      background: #eef2f7;
+      color: #0b1f4d;
+      font-size: 13px;
+      text-transform: uppercase;
+    }
+
+    tr:last-child td {
+      border-bottom: none;
+    }
+
+    .error {
+      background: #ffe4e4;
+      color: #9b1111;
+      padding: 14px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      display: none;
+    }
+
+    @media (max-width: 900px) {
+      .cards {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    @media (max-width: 600px) {
+      main {
+        padding: 20px;
+      }
+
+      .cards {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <header>
+    <h1>Base de Datos en Tiempo Real</h1>
+    <p>Datalogger MVP conectado a Supabase</p>
+  </header>
+
+  <main>
+    <div class="meta">
+      Última actualización: <span id="ultimaActualizacion">Cargando...</span>
+    </div>
+
+    <div id="errorBox" class="error"></div>
+
+    <section class="cards">
+      <div class="card">
+        <h3>Temperatura</h3>
+        <div class="value"><span id="temperatura">--</span> °C</div>
+      </div>
+
+      <div class="card">
+        <h3>Humedad</h3>
+        <div class="value"><span id="humedad">--</span> %HR</div>
+      </div>
+
+      <div class="card">
+        <h3>Presión</h3>
+        <div class="value"><span id="presion">--</span> Pa</div>
+      </div>
+
+      <div class="card">
+        <h3>Estado</h3>
+        <span id="estado" class="status">--</span>
+      </div>
+    </section>
+
+    <h2>Últimas mediciones</h2>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Fecha / Hora</th>
+          <th>Temperatura</th>
+          <th>Humedad</th>
+          <th>Presión</th>
+          <th>Estado</th>
+        </tr>
+      </thead>
+      <tbody id="tablaMediciones">
+        <tr>
+          <td colspan="5">Cargando datos...</td>
+        </tr>
+      </tbody>
+    </table>
+  </main>
+
+  <script src="supabase-api.js"></script>
+
+  <script>
+    async function cargarDatosBD() {
+      const errorBox = document.getElementById("errorBox");
+
+      try {
+        errorBox.style.display = "none";
+
+        const dashboard = await obtenerDashboardActual();
+        const historial = await obtenerHistorialMediciones();
+
+        const actual = Array.isArray(dashboard) ? dashboard[0] : dashboard;
+
+        if (actual) {
+          document.getElementById("temperatura").textContent = actual.temperatura ?? actual.temperatura_c ?? "--";
+          document.getElementById("humedad").textContent = actual.humedad ?? actual.humedad_hr ?? "--";
+          document.getElementById("presion").textContent = actual.presion ?? actual.presion_pa ?? "--";
+          document.getElementById("estado").textContent = actual.estado ?? "Normal";
+        }
+
+        const tabla = document.getElementById("tablaMediciones");
+        tabla.innerHTML = "";
+
+        const registros = Array.isArray(historial) ? historial.slice(0, 20) : [];
+
+        registros.forEach((item) => {
+          const fecha = item.fecha || item.fecha_hora || item.created_at || item.timestamp;
+          const temperatura = item.temperatura ?? item.temperatura_c ?? "--";
+          const humedad = item.humedad ?? item.humedad_hr ?? "--";
+          const presion = item.presion ?? item.presion_pa ?? "--";
+          const estado = item.estado ?? "Normal";
+
+          const fila = document.createElement("tr");
+
+          fila.innerHTML = `
+            <td>${fecha ? new Date(fecha).toLocaleString("es-AR") : "--"}</td>
+            <td>${temperatura} °C</td>
+            <td>${humedad} %HR</td>
+            <td>${presion} Pa</td>
+            <td>${estado}</td>
+          `;
+
+          tabla.appendChild(fila);
+        });
+
+        document.getElementById("ultimaActualizacion").textContent =
+          new Date().toLocaleString("es-AR");
+
+      } catch (error) {
+        console.error(error);
+        errorBox.textContent = "Error al cargar datos desde Supabase.";
+        errorBox.style.display = "block";
+      }
+    }
+
+    cargarDatosBD();
+
+    setInterval(cargarDatosBD, 5000);
+  </script>
+</body>
+</html>
