@@ -1,6 +1,6 @@
 /* ===== SUPABASE API PUBLICA ===== */
 const SUPABASE_URL = 'https://mknhezrdzhtangvuzkvq.supabase.co';
-const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_gE7-6xmZFCPrLPbJLEjy2w_4RoC8puw';
+const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_gE7-6xmZFCPrLPbJLEjy2w_4RoC8puw";
 
 const SUPABASE_DEFAULT_TABLES = [
   'historial_mediciones',
