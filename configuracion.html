@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>DataLogger — Configuración</title>
+  <link rel="stylesheet" href="styles.css"/>
+</head>
+<body>
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">DL</div>
+      <span class="logo-text">DataLogger</span>
+    </div>
+    <nav class="sidebar-nav">
+      <p class="nav-label">NAVEGACIÓN</p>
+      <a href="index.html" class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        Panel Principal
+      </a>
+      <a href="temperatura.html" class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/></svg>
+        Temperatura
+      </a>
+      <a href="humedad.html" class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
+        Humedad
+      </a>
+      <a href="presion.html" class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Presión
+      </a>
+      <p class="nav-label" style="margin-top:2rem;">SISTEMA</p>
+      <a href="historial.html" class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Historial
+      </a>
+      <a href="configuracion.html" class="nav-item active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 19.07a10 10 0 0 1 0-14.14"/></svg>
+        Configuración
+      </a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="status-dot online"></div>
+      <span>Dispositivo conectado</span>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+    <header class="topbar">
+      <button class="hamburger" aria-label="Menú">
+        <span></span><span></span><span></span>
+      </button>
+      <div>
+        <h1 class="page-title">Configuración</h1>
+        <p class="page-subtitle">Parámetros del dispositivo y preferencias de visualización</p>
+      </div>
+      <div class="topbar-right">
+        <button class="dark-toggle" id="dark-toggle-btn" onclick="toggleDarkMode()"><span class="dt-icon">☀️</span><span class="dt-label">Claro</span></button>
+        <button class="btn-outline">Restablecer</button>
+        <button class="btn-primary" onclick="saveConfig()">💾 Guardar cambios</button>
+      </div>
+    </header>
+
+    <div class="config-grid">
+
+      <!-- Unidades de medida -->
+      <div class="config-card">
+        <h3>Unidades de medida</h3>
+        <div class="form-group">
+          <label>Temperatura — escala predeterminada</label>
+          <select id="cfg-temp-unit">
+            <option value="C">Celsius (°C)</option>
+            <option value="K">Kelvin (K)</option>
+            <option value="F">Fahrenheit (°F)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Humedad — tipo predeterminado</label>
+          <select id="cfg-hum-unit">
+            <option value="RH">Humedad Relativa (%HR)</option>
+            <option value="ABS">Humedad Absoluta (g/m³)</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Presión — unidad de referencia</label>
+          <select id="cfg-pres-unit">
+            <option value="Pa">Pascal (Pa) — SI</option>
+            <option value="hPa">Hectopascal (hPa)</option>
+            <option value="atm">Atmósferas (atm)</option>
+            <option value="mmHg">mmHg (Torr)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Intervalo de muestreo -->
+      <div class="config-card">
+        <h3>Muestreo y almacenamiento</h3>
+        <div class="form-group">
+          <label>Intervalo de muestreo</label>
+          <select id="cfg-interval">
+            <option>10 segundos</option>
+            <option selected>1 minuto</option>
+            <option>5 minutos</option>
+            <option>15 minutos</option>
+            <option>1 hora</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Retención de datos</label>
+          <select id="cfg-retention">
+            <option>7 días</option>
+            <option selected>30 días</option>
+            <option>90 días</option>
+            <option>1 año</option>
+            <option>Sin límite</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Formato de exportación</label>
+          <select id="cfg-export">
+            <option>CSV</option>
+            <option>JSON</option>
+            <option>XLSX</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Alertas temperatura -->
+      <div class="config-card">
+        <h3>Alertas — Temperatura</h3>
+        <div class="form-group">
+          <label>Umbral mínimo (°C)</label>
+          <input type="number" id="cfg-temp-min" value="10" step="0.5"/>
+        </div>
+        <div class="form-group">
+          <label>Umbral máximo (°C)</label>
+          <input type="number" id="cfg-temp-max" value="40" step="0.5"/>
+        </div>
+        <div style="display:flex;align-items:center;gap:.75rem;font-size:.9rem;">
+          <input type="checkbox" id="cfg-temp-alert" checked style="width:16px;height:16px;accent-color:var(--blue);"/>
+          <label for="cfg-temp-alert" style="text-transform:none;font-size:.9rem;color:var(--text);">Activar alertas de temperatura</label>
+        </div>
+      </div>
+
+      <!-- Alertas humedad -->
+      <div class="config-card">
+        <h3>Alertas — Humedad</h3>
+        <div class="form-group">
+          <label>Umbral mínimo (%HR)</label>
+          <input type="number" id="cfg-hum-min" value="20" step="1"/>
+        </div>
+        <div class="form-group">
+          <label>Umbral máximo (%HR)</label>
+          <input type="number" id="cfg-hum-max" value="85" step="1"/>
+        </div>
+        <div style="display:flex;align-items:center;gap:.75rem;font-size:.9rem;">
+          <input type="checkbox" id="cfg-hum-alert" checked style="width:16px;height:16px;accent-color:var(--blue);"/>
+          <label for="cfg-hum-alert" style="text-transform:none;font-size:.9rem;color:var(--text);">Activar alertas de humedad</label>
+        </div>
+      </div>
+
+      <!-- Alertas presion -->
+      <div class="config-card">
+        <h3>Alertas — Presión</h3>
+        <div class="form-group">
+          <label>Umbral mínimo (Pa)</label>
+          <input type="number" id="cfg-pres-min" value="97000" step="100"/>
+        </div>
+        <div class="form-group">
+          <label>Umbral máximo (Pa)</label>
+          <input type="number" id="cfg-pres-max" value="105000" step="100"/>
+        </div>
+        <div style="display:flex;align-items:center;gap:.75rem;">
+          <input type="checkbox" id="cfg-pres-alert" style="width:16px;height:16px;accent-color:var(--blue);"/>
+          <label for="cfg-pres-alert" style="text-transform:none;font-size:.9rem;color:var(--text);">Activar alertas de presión</label>
+        </div>
+      </div>
+
+      <!-- Dispositivo -->
+      <div class="config-card">
+        <h3>Información del dispositivo</h3>
+        <div style="font-size:.88rem;color:var(--text-soft);line-height:2;">
+          <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--gray-bg);padding-bottom:.4rem;margin-bottom:.4rem;">
+            <span>ID del dispositivo</span><strong style="color:var(--text);">DL-2024-001</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--gray-bg);padding-bottom:.4rem;margin-bottom:.4rem;">
+            <span>Firmware</span><strong style="color:var(--text);">v2.3.1</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--gray-bg);padding-bottom:.4rem;margin-bottom:.4rem;">
+            <span>Sensores</span><strong style="color:var(--text);">DHT22 + BMP280</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between;border-bottom:1px solid var(--gray-bg);padding-bottom:.4rem;margin-bottom:.4rem;">
+            <span>Conexión</span><strong style="color:var(--green);">WiFi ● Online</strong>
+          </div>
+          <div style="display:flex;justify-content:space-between;">
+            <span>Última sincronización</span><strong style="color:var(--text);" id="last-sync">Ahora</strong>
+          </div>
+        </div>
+        <div style="margin-top:1rem;display:flex;gap:.5rem;">
+          <button class="btn-outline" style="flex:1;font-size:.82rem;">Reiniciar sensor</button>
+          <button class="btn-primary" style="flex:1;font-size:.82rem;">Sincronizar</button>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Toast notification (hidden) -->
+    <div id="toast" style="
+      position:fixed;bottom:2rem;right:2rem;
+      background:var(--blue);color:white;
+      padding:.75rem 1.5rem;border-radius:10px;
+      font-size:.9rem;font-weight:600;
+      box-shadow:0 4px 20px rgba(0,0,0,.2);
+      display:none;z-index:999;
+      animation: slideUp .3s ease;
+    ">✓ Configuración guardada</div>
+  </main>
+</div>
+
+<style>
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+</style>
+
+<script src="app.js"></script>
+<div class="sidebar-overlay"></div>
+<script src="sidebar.js"></script>
+<script>
+  function saveConfig() {
+    const toast = document.getElementById('toast');
+    toast.style.display = 'block';
+    toast.style.animation = 'none';
+    void toast.offsetWidth;
+    toast.style.animation = 'slideUp .3s ease';
+    setTimeout(() => toast.style.display = 'none', 2500);
+  }
+
+  // Update last sync time
+  document.getElementById('last-sync').textContent =
+    new Date().toLocaleTimeString('es-AR');
+</script>
+</body>
+</html>

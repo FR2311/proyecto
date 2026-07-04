@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>DataLogger — Historial</title>
+  <link rel="stylesheet" href="styles.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">DL</div>
+      <span class="logo-text">DataLogger</span>
+    </div>
+    <nav class="sidebar-nav">
+      <p class="nav-label">NAVEGACIÓN</p>
+      <a href="index.html" class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        Panel Principal
+      </a>
+      <a href="temperatura.html" class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/></svg>
+        Temperatura
+      </a>
+      <a href="humedad.html" class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
+        Humedad
+      </a>
+      <a href="presion.html" class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Presión
+      </a>
+      <p class="nav-label" style="margin-top:2rem;">SISTEMA</p>
+      <a href="historial.html" class="nav-item active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Historial
+      </a>
+      <a href="configuracion.html" class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 19.07a10 10 0 0 1 0-14.14"/></svg>
+        Configuración
+      </a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="status-dot online"></div>
+      <span>Dispositivo conectado</span>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+    <header class="topbar">
+      <button class="hamburger" aria-label="Menú">
+        <span></span><span></span><span></span>
+      </button>
+      <div>
+        <h1 class="page-title">Historial de datos</h1>
+        <p class="page-subtitle">Registros almacenados del datalogger</p>
+      </div>
+      <div class="topbar-right">
+        <span class="update-badge">Actualizado: <strong id="last-update">--:--:--</strong></span>
+        <button class="btn-outline">⬇ Exportar CSV</button>
+        <button class="dark-toggle" id="dark-toggle-btn" onclick="toggleDarkMode()"><span class="dt-icon">☀️</span><span class="dt-label">Claro</span></button>
+        <button class="btn-primary" onclick="initHistorial()">↻ Actualizar</button>
+      </div>
+    </header>
+
+    <!-- FILTERS -->
+    <div class="filter-bar">
+      <div class="form-group" style="margin:0;min-width:160px;">
+        <label>Desde</label>
+        <input type="datetime-local" id="filter-from"/>
+      </div>
+      <div class="form-group" style="margin:0;min-width:160px;">
+        <label>Hasta</label>
+        <input type="datetime-local" id="filter-to"/>
+      </div>
+      <div class="form-group" style="margin:0;min-width:140px;">
+        <label>Variable</label>
+        <select id="filter-var">
+          <option value="all">Todas</option>
+          <option value="temp">Temperatura</option>
+          <option value="hum">Humedad</option>
+          <option value="pres">Presión</option>
+        </select>
+      </div>
+      <div class="form-group" style="margin:0;min-width:130px;">
+        <label>Intervalo</label>
+        <select id="filter-interval">
+          <option>1 minuto</option>
+          <option>5 minutos</option>
+          <option>15 minutos</option>
+          <option>1 hora</option>
+        </select>
+      </div>
+      <div style="padding-top:1.3rem;">
+        <button class="btn-primary" onclick="renderHistorialTable()">Filtrar</button>
+      </div>
+    </div>
+
+    <!-- CHART -->
+    <div class="chart-card" style="margin-bottom:1.5rem;">
+      <div class="chart-header">
+        <h2>Visualización combinada (últimas 24h)</h2>
+        <div class="legend">
+          <span class="legend-dot" style="background:#003087"></span> Temperatura (°C)
+          <span class="legend-dot" style="background:#0078d4;margin-left:1rem;"></span> Humedad (%HR)
+        </div>
+      </div>
+      <canvas id="histChart" height="90"></canvas>
+    </div>
+
+    <!-- TABLE -->
+    <section class="table-section">
+      <div class="section-header">
+        <h2>Registros</h2>
+        <span style="font-size:.82rem;color:var(--text-soft);">Mostrando últimos 20 registros</span>
+      </div>
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Fecha / Hora</th>
+              <th>Temperatura (°C)</th>
+              <th>Humedad (%HR)</th>
+              <th>Presión (Pa)</th>
+              <th>Estado</th>
+            </tr>
+          </thead>
+          <tbody id="table-hist"></tbody>
+        </table>
+      </div>
+      <!-- Pagination mockup -->
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:1rem 1.25rem;border-top:1px solid var(--gray-bg);">
+        <span style="font-size:.82rem;color:var(--text-soft);">Mostrando 1–20 de 1 440 registros</span>
+        <div style="display:flex;gap:.4rem;">
+          <button class="btn-outline" style="padding:.3rem .75rem;font-size:.82rem;">‹ Anterior</button>
+          <button class="btn-primary" style="padding:.3rem .75rem;font-size:.82rem;">Siguiente ›</button>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script src="app.js"></script>
+<script>
+  // Pre-fill date filters with sensible defaults
+  const now = new Date();
+  const pad = n => n.toString().padStart(2, '0');
+  const fmt = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const yesterday = new Date(now - 86400000);
+  document.getElementById('filter-from').value = fmt(yesterday);
+  document.getElementById('filter-to').value   = fmt(now);
+
+  initHistorial();
+</script>
+<div class="sidebar-overlay"></div>
+<script src="sidebar.js"></script>
+</body>
+</html>

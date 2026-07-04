@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>DataLogger — Humedad</title>
+  <link rel="stylesheet" href="styles.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">DL</div>
+      <span class="logo-text">DataLogger</span>
+    </div>
+    <nav class="sidebar-nav">
+      <p class="nav-label">NAVEGACIÓN</p>
+      <a href="index.html" class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        Panel Principal
+      </a>
+      <a href="temperatura.html" class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/></svg>
+        Temperatura
+      </a>
+      <a href="humedad.html" class="nav-item active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
+        Humedad
+      </a>
+      <a href="presion.html" class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Presión
+      </a>
+      <p class="nav-label" style="margin-top:2rem;">SISTEMA</p>
+      <a href="historial.html" class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Historial
+      </a>
+      <a href="configuracion.html" class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 19.07a10 10 0 0 1 0-14.14"/></svg>
+        Configuración
+      </a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="status-dot online"></div>
+      <span>Dispositivo conectado</span>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+    <header class="topbar">
+      <button class="hamburger" aria-label="Menú">
+        <span></span><span></span><span></span>
+      </button>
+      <div>
+        <h1 class="page-title">Humedad</h1>
+        <p class="page-subtitle">Monitoreo en tiempo real · Sensor DHT22</p>
+      </div>
+      <div class="topbar-right">
+        <div class="unit-selector">
+          <span style="font-size:.82rem;font-weight:600;color:var(--text-soft);">Tipo:</span>
+          <button class="unit-btn active" data-unit="RH" onclick="selectHumUnit('RH')">
+            Humedad Relativa (%HR)
+          </button>
+          <button class="unit-btn" data-unit="ABS" onclick="selectHumUnit('ABS')">
+            Humedad Absoluta (g/m³)
+          </button>
+        </div>
+        <button class="dark-toggle" id="dark-toggle-btn" onclick="toggleDarkMode()"><span class="dt-icon">☀️</span><span class="dt-label">Claro</span></button>
+        <span class="update-badge">Actualizado: <strong id="last-update">--:--:--</strong></span>
+      </div>
+    </header>
+
+    <!-- TOP ROW -->
+    <section class="detail-grid" style="margin-bottom:1.5rem;">
+      <div class="big-reading">
+        <span class="label">Lectura actual</span>
+        <div style="display:flex;align-items:flex-end;gap:.5rem;">
+          <span class="value" id="hum-current">--</span>
+          <span class="unit" id="hum-unit-label">%HR</span>
+        </div>
+        <div class="stats">
+          <div>
+            <div class="stat-lbl">Mínimo (24h)</div>
+            <div class="stat-val" id="hum-min">--</div>
+          </div>
+          <div>
+            <div class="stat-lbl">Máximo (24h)</div>
+            <div class="stat-val" id="hum-max">--</div>
+          </div>
+          <div>
+            <div class="stat-lbl">Promedio (24h)</div>
+            <div class="stat-val" id="hum-avg">--</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;flex-direction:column;gap:.75rem;">
+        <!-- Comfort scale -->
+        <div class="stat-box" style="flex:1;">
+          <div class="stat-label">Escala de confort</div>
+          <div style="margin-top:.75rem;">
+            <div style="height:14px;border-radius:99px;background:linear-gradient(to right,#bfdbfe,#60a5fa,#003087,#1e40af,#7e22ce);position:relative;overflow:visible;margin-bottom:.5rem;">
+              <div id="hum-pointer" style="position:absolute;top:-4px;width:4px;height:22px;background:white;border:2px solid var(--blue);border-radius:2px;left:60%;transform:translateX(-50%);transition:left .5s;"></div>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:.7rem;color:var(--text-soft);">
+              <span>0% Seco</span>
+              <span>30–60% Confort</span>
+              <span>100% Saturado</span>
+            </div>
+          </div>
+          <div style="margin-top:1rem;">
+            <div id="hum-status-badge" class="badge ok" style="font-size:.85rem;padding:.3rem .9rem;">Calculando...</div>
+          </div>
+        </div>
+
+        <div class="stat-box">
+          <div class="stat-label">Equivalencias</div>
+          <div style="margin-top:.75rem;display:flex;flex-direction:column;gap:.5rem;">
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:.45rem .6rem;background:var(--blue-pale);border-radius:6px;">
+              <span style="color:var(--text-soft);font-size:.83rem;">Humedad Relativa</span>
+              <strong id="equiv-rh" style="color:var(--blue);">-- %HR</strong>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center;padding:.45rem .6rem;border-radius:6px;">
+              <span style="color:var(--text-soft);font-size:.83rem;">Humedad Absoluta</span>
+              <strong id="equiv-abs" style="color:var(--blue);">-- g/m³</strong>
+            </div>
+          </div>
+        </div>
+
+        <div class="stat-box">
+          <div class="stat-label">Información del sensor</div>
+          <div style="margin-top:.5rem;font-size:.85rem;color:var(--text-soft);line-height:1.7;">
+            <div><strong>Modelo:</strong> DHT22</div>
+            <div><strong>Rango HR:</strong> 0 – 100 %</div>
+            <div><strong>Precisión:</strong> ±2 %HR</div>
+            <div><strong>Resolución:</strong> 0.1 %HR</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CHART -->
+    <div class="chart-card" style="margin-bottom:1.5rem;">
+      <div class="chart-header">
+        <h2>Evolución últimas 24 horas</h2>
+        <div id="hum-chart-badge" style="font-size:.8rem;color:var(--text-soft);background:var(--gray-bg);padding:.2rem .75rem;border-radius:99px;">%HR</div>
+      </div>
+      <canvas id="humChart" height="90"></canvas>
+    </div>
+
+    <!-- TABLE -->
+    <section class="table-section">
+      <div class="section-header">
+        <h2>Últimas lecturas comparativas</h2>
+        <a href="historial.html" class="link-more">Ver historial completo →</a>
+      </div>
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Fecha / Hora</th>
+              <th>Humedad Relativa (%HR)</th>
+              <th>Humedad Absoluta (g/m³)</th>
+              <th>Temperatura ref. (°C)</th>
+              <th>Estado</th>
+            </tr>
+          </thead>
+          <tbody id="table-body-hum"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script src="app.js"></script>
+<script>
+  const INFO_TEXTS = {
+    RH:  '<strong>Humedad Relativa (%HR):</strong> Mide la cantidad de vapor de agua en el aire en relación con la máxima cantidad que el aire puede retener a esa temperatura.',
+    ABS: '<strong>Humedad Absoluta (g/m³):</strong> Mide la masa real de agua presente en un volumen de aire. No depende de la temperatura y se expresa en gramos por metro cúbico (g/m³) o kg/kg.'
+  };
+
+  const origSelectHum = selectHumUnit;
+  function selectHumUnit(unit) {
+    origSelectHum(unit);
+    document.getElementById('hum-chart-badge').textContent = unit === 'RH' ? '%HR' : 'g/m³';
+    updateHumPointer(unit);
+    updateHumStatus();
+    updateHumEquiv();
+  }
+
+  function updateHumPointer(unit) {
+    const rh = HUM_DATA[HUM_DATA.length - 1];
+    const ptr = document.getElementById('hum-pointer');
+    if (ptr) ptr.style.left = rh + '%';
+  }
+
+  function updateHumStatus() {
+    const rh  = HUM_DATA[HUM_DATA.length - 1];
+    const el  = document.getElementById('hum-status-badge');
+    if (!el) return;
+    if (rh < 30)       { el.textContent = 'Aire seco';      el.className = 'badge warning'; }
+    else if (rh <= 60) { el.textContent = 'Confort óptimo'; el.className = 'badge ok'; }
+    else if (rh <= 80) { el.textContent = 'Algo húmedo';    el.className = 'badge warning'; }
+    else               { el.textContent = 'Muy húmedo';     el.className = 'badge error'; }
+  }
+
+  function updateHumEquiv() {
+    const rh  = HUM_DATA[HUM_DATA.length - 1];
+    const tc  = TEMP_DATA[TEMP_DATA.length - 1];
+    const abs = toAbsoluteHumidity(rh, tc);
+    const elRh  = document.getElementById('equiv-rh');
+    const elAbs = document.getElementById('equiv-abs');
+    if (elRh)  elRh.textContent  = rh.toFixed(1) + ' %HR';
+    if (elAbs) elAbs.textContent = abs.toFixed(2) + ' g/m³';
+  }
+
+  initHumedad();
+  updateHumPointer('RH');
+  updateHumStatus();
+  updateHumEquiv();
+</script>
+<div class="sidebar-overlay"></div>
+<script src="sidebar.js"></script>
+</body>
+</html>

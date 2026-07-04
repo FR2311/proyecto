@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>DataLogger — Presión</title>
+  <link rel="stylesheet" href="styles.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+<div class="layout">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-icon">DL</div>
+      <span class="logo-text">DataLogger</span>
+    </div>
+    <nav class="sidebar-nav">
+      <p class="nav-label">NAVEGACIÓN</p>
+      <a href="index.html" class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+        Panel Principal
+      </a>
+      <a href="temperatura.html" class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/></svg>
+        Temperatura
+      </a>
+      <a href="humedad.html" class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"/></svg>
+        Humedad
+      </a>
+      <a href="presion.html" class="nav-item active">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Presión
+      </a>
+      <p class="nav-label" style="margin-top:2rem;">SISTEMA</p>
+      <a href="historial.html" class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        Historial
+      </a>
+      <a href="configuracion.html" class="nav-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 19.07a10 10 0 0 1 0-14.14"/></svg>
+        Configuración
+      </a>
+    </nav>
+    <div class="sidebar-footer">
+      <div class="status-dot online"></div>
+      <span>Dispositivo conectado</span>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main">
+    <header class="topbar">
+      <button class="hamburger" aria-label="Menú">
+        <span></span><span></span><span></span>
+      </button>
+      <div>
+        <h1 class="page-title">Presión Atmosférica</h1>
+        <p class="page-subtitle">Monitoreo en tiempo real · Sensor BMP280</p>
+      </div>
+      <div class="topbar-right">
+        <button class="dark-toggle" id="dark-toggle-btn" onclick="toggleDarkMode()"><span class="dt-icon">☀️</span><span class="dt-label">Claro</span></button>
+        <span class="update-badge">Actualizado: <strong id="last-update">--:--:--</strong></span>
+        <button class="btn-primary" onclick="initPresion()">↻ Actualizar</button>
+      </div>
+    </header>
+
+    <!-- TOP ROW -->
+    <section class="detail-grid" style="margin-bottom:1.5rem;">
+      <!-- Big reading -->
+      <div class="big-reading">
+        <span class="label">Presión actual</span>
+        <div style="display:flex;align-items:flex-end;gap:.5rem;">
+          <span class="value" id="pres-current" style="font-size:2.8rem;">--</span>
+          <span class="unit">Pa</span>
+        </div>
+        <div class="stats">
+          <div>
+            <div class="stat-lbl">Mínimo (24h)</div>
+            <div class="stat-val" id="pres-min">--</div>
+          </div>
+          <div>
+            <div class="stat-lbl">Máximo (24h)</div>
+            <div class="stat-val" id="pres-max">--</div>
+          </div>
+          <div>
+            <div class="stat-lbl">Promedio (24h)</div>
+            <div class="stat-val" id="pres-avg">--</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Conversions & info -->
+      <div style="display:flex;flex-direction:column;gap:.75rem;">
+        <div class="stat-box">
+          <div class="stat-label">Equivalencias</div>
+          <div style="margin-top:.75rem;display:flex;flex-direction:column;gap:.5rem;">
+            <div style="display:flex;justify-content:space-between;padding:.4rem .6rem;background:var(--blue-pale);border-radius:6px;">
+              <span style="color:var(--text-soft);font-size:.85rem;">Pascal (Pa) <em style="font-size:.75rem;">unidad SI</em></span>
+              <strong id="pres-pa-display" style="color:var(--blue);">--</strong>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:.4rem .6rem;border-radius:6px;">
+              <span style="color:var(--text-soft);font-size:.85rem;">Hectopascal (hPa)</span>
+              <strong id="pres-hpa" style="color:var(--blue);">--</strong>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:.4rem .6rem;border-radius:6px;">
+              <span style="color:var(--text-soft);font-size:.85rem;">Atmósferas (atm)</span>
+              <strong id="pres-atm" style="color:var(--blue);">--</strong>
+            </div>
+            <div style="display:flex;justify-content:space-between;padding:.4rem .6rem;border-radius:6px;">
+              <span style="color:var(--text-soft);font-size:.85rem;">mmHg (Torr)</span>
+              <strong id="pres-mmhg" style="color:var(--blue);">--</strong>
+            </div>
+          </div>
+        </div>
+
+        <div class="stat-box">
+          <div class="stat-label">Referencia</div>
+          <div style="margin-top:.5rem;font-size:.85rem;color:var(--text-soft);line-height:1.8;">
+            <div>Presión estándar: <strong style="color:var(--blue);">101 325 Pa</strong></div>
+            <div>Presión media a nivel del mar: <strong style="color:var(--blue);">101 325 Pa</strong></div>
+          </div>
+        </div>
+
+        <div class="stat-box">
+          <div class="stat-label">Información del sensor</div>
+          <div style="margin-top:.5rem;font-size:.85rem;color:var(--text-soft);line-height:1.7;">
+            <div><strong>Modelo:</strong> BMP280</div>
+            <div><strong>Rango:</strong> 300 – 1100 hPa</div>
+            <div><strong>Precisión:</strong> ±1 hPa</div>
+            <div><strong>Resolución:</strong> 0.01 hPa</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CHART -->
+    <div class="chart-card" style="margin-bottom:1.5rem;">
+      <div class="chart-header">
+        <h2>Evolución últimas 24 horas (Pa)</h2>
+        <div style="font-size:.8rem;color:var(--text-soft);">Referencia: 101 325 Pa — Presión estándar</div>
+      </div>
+      <canvas id="presionChart" height="90"></canvas>
+    </div>
+
+    <!-- TABLE -->
+    <section class="table-section">
+      <div class="section-header">
+        <h2>Últimas lecturas (multi-escala)</h2>
+        <a href="historial.html" class="link-more">Ver historial completo →</a>
+      </div>
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Fecha / Hora</th>
+              <th>Pascales (Pa)</th>
+              <th>Hectopascales (hPa)</th>
+              <th>Atmósferas (atm)</th>
+              <th>Estado</th>
+            </tr>
+          </thead>
+          <tbody id="table-body-pres"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script src="app.js"></script>
+<script>
+  initPresion();
+  const paDisp = document.getElementById('pres-pa-display');
+  if (paDisp) paDisp.textContent = PRES_DATA[PRES_DATA.length-1].toLocaleString('es-AR') + ' Pa';
+</script>
+<div class="sidebar-overlay"></div>
+<script src="sidebar.js"></script>
+</body>
+</html>
