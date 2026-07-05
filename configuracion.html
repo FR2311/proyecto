@@ -239,7 +239,11 @@
 <script>
   function readConfigForm() {
     const interval = document.getElementById('cfg-interval').value;
-    const nonNegativeNumber = id => Math.max(0, Number(document.getElementById(id).value) || 0);
+    const nonNegativeNumber = id => {
+      const input = document.getElementById(id);
+      clampConfigInput(input);
+      return Math.max(0, Number(input.value) || 0);
+    };
     const percentNumber = id => Math.min(100, nonNegativeNumber(id));
     let tempMin = nonNegativeNumber('cfg-temp-min');
     let tempMax = nonNegativeNumber('cfg-temp-max');
@@ -306,11 +310,36 @@
     input.value = value;
   }
 
+  function blockNegativeConfigInput(event) {
+    if (event.data && /[-+eE]/.test(event.data)) {
+      event.preventDefault();
+    }
+  }
+
+  function blockNegativeConfigKey(event) {
+    if (['-', '+', 'e', 'E'].includes(event.key)) {
+      event.preventDefault();
+    }
+  }
+
+  function blockNegativeConfigPaste(event, input) {
+    const clipboard = event.clipboardData || window.clipboardData;
+    const text = clipboard ? clipboard.getData('text') : '';
+    if (/[-+eE]/.test(text)) {
+      event.preventDefault();
+      clampConfigInput(input);
+    }
+  }
+
   function initConfigValidation() {
     ['cfg-temp-min', 'cfg-temp-max', 'cfg-hum-min', 'cfg-hum-max', 'cfg-pres-min', 'cfg-pres-max'].forEach(id => {
       const input = document.getElementById(id);
+      input.addEventListener('beforeinput', blockNegativeConfigInput);
+      input.addEventListener('keydown', blockNegativeConfigKey);
+      input.addEventListener('paste', event => blockNegativeConfigPaste(event, input));
       input.addEventListener('input', () => clampConfigInput(input));
       input.addEventListener('change', () => clampConfigInput(input));
+      clampConfigInput(input);
     });
   }
 
@@ -325,6 +354,7 @@
 
   function saveConfigForm() {
     saveConfig(readConfigForm());
+    applyConfigForm();
     document.getElementById('last-sync').textContent = formatArgentinaTime();
     showConfigToast();
   }
