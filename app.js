@@ -67,6 +67,11 @@ function getSamplingIntervalMs() {
   return Number(cfg.samplingIntervalMs) || parseSamplingInterval(cfg.samplingInterval) || DEFAULT_SAMPLING_INTERVAL_MS;
 }
 
+window.formatArgentinaTime = formatArgentinaTime;
+window.formatArgentinaDateTime = formatArgentinaDateTime;
+window.parseSamplingInterval = parseSamplingInterval;
+window.getSamplingIntervalMs = getSamplingIntervalMs;
+
 function randomBetween(min, max, decimals = 1) {
   return parseFloat((Math.random() * (max - min) + min).toFixed(decimals));
 }

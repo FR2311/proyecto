@@ -149,8 +149,20 @@
 <div class="sidebar-overlay"></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-api.js?v=auth-session-fix"></script>
-<script src="app.js"></script>
+<script src="app.js?v=arg-time-fix"></script>
 <script>
+  const bdFormatArgentinaTime = window.formatArgentinaTime || function(date = new Date()) {
+    return date.toLocaleTimeString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' });
+  };
+
+  const bdFormatArgentinaDateTime = window.formatArgentinaDateTime || function(date = new Date()) {
+    return date.toLocaleString('es-AR', {
+      timeZone: 'America/Argentina/Buenos_Aires',
+      dateStyle: 'short',
+      timeStyle: 'medium'
+    });
+  };
+
   function valorMedicion(item, nombres) {
     const nombre = nombres.find(key => item && Object.prototype.hasOwnProperty.call(item, key));
     return nombre ? item[nombre] : '--';
@@ -191,7 +203,7 @@
       const estado = valorMedicion(item, ['estado', 'status']);
 
       return `<tr>
-        <td>${fecha && fecha !== '--' ? formatArgentinaDateTime(new Date(fecha)) : '--'}</td>
+        <td>${fecha && fecha !== '--' ? bdFormatArgentinaDateTime(new Date(fecha)) : '--'}</td>
         <td>${temperatura} &deg;C</td>
         <td>${humedad} %HR</td>
         <td>${presion} Pa</td>
@@ -214,7 +226,7 @@
       actualizarResumen(Array.isArray(dashboard) ? dashboard[0] : dashboard);
       renderTablaMediciones(historial);
 
-      document.getElementById('ultimaActualizacion').textContent = formatArgentinaTime();
+      document.getElementById('ultimaActualizacion').textContent = bdFormatArgentinaTime();
     } catch (error) {
       console.error(error);
       errorBox.textContent = error.message || 'Error al cargar datos desde Supabase.';
@@ -227,7 +239,7 @@
     if (!session) return;
 
     setInterval(() => {
-      document.getElementById('ultimaActualizacion').textContent = formatArgentinaTime();
+      document.getElementById('ultimaActualizacion').textContent = bdFormatArgentinaTime();
     }, 1000);
     await cargarDatosBD();
     setInterval(cargarDatosBD, 5000);
