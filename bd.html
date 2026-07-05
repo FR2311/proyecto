@@ -191,7 +191,7 @@
       const estado = valorMedicion(item, ['estado', 'status']);
 
       return `<tr>
-        <td>${fecha && fecha !== '--' ? new Date(fecha).toLocaleString('es-AR') : '--'}</td>
+        <td>${fecha && fecha !== '--' ? formatArgentinaDateTime(new Date(fecha)) : '--'}</td>
         <td>${temperatura} &deg;C</td>
         <td>${humedad} %HR</td>
         <td>${presion} Pa</td>
@@ -214,8 +214,7 @@
       actualizarResumen(Array.isArray(dashboard) ? dashboard[0] : dashboard);
       renderTablaMediciones(historial);
 
-      document.getElementById('ultimaActualizacion').textContent =
-        new Date().toLocaleTimeString('es-AR');
+      document.getElementById('ultimaActualizacion').textContent = formatArgentinaTime();
     } catch (error) {
       console.error(error);
       errorBox.textContent = error.message || 'Error al cargar datos desde Supabase.';
@@ -227,6 +226,9 @@
     const session = await window.protegerPagina();
     if (!session) return;
 
+    setInterval(() => {
+      document.getElementById('ultimaActualizacion').textContent = formatArgentinaTime();
+    }, 1000);
     await cargarDatosBD();
     setInterval(cargarDatosBD, 5000);
   })();

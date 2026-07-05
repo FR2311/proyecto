@@ -65,8 +65,8 @@
       </div>
       <div class="topbar-right">
         <button class="dark-toggle" id="dark-toggle-btn" onclick="toggleDarkMode()"><span class="dt-icon">☀️</span><span class="dt-label">Claro</span></button>
-        <button class="btn-outline">Restablecer</button>
-        <button class="btn-primary" onclick="saveConfig()">💾 Guardar cambios</button>
+        <button class="btn-outline" onclick="resetConfigForm()">Restablecer</button>
+        <button class="btn-primary" onclick="saveConfigForm()">💾 Guardar cambios</button>
       </div>
     </header>
 
@@ -107,11 +107,11 @@
         <div class="form-group">
           <label>Intervalo de muestreo</label>
           <select id="cfg-interval">
-            <option>10 segundos</option>
-            <option selected>1 minuto</option>
-            <option>5 minutos</option>
-            <option>15 minutos</option>
-            <option>1 hora</option>
+            <option value="10 segundos">10 segundos</option>
+            <option value="1 minuto" selected>1 minuto</option>
+            <option value="5 minutos">5 minutos</option>
+            <option value="15 minutos">15 minutos</option>
+            <option value="1 hora">1 hora</option>
           </select>
         </div>
         <div class="form-group">
@@ -237,7 +237,48 @@
 <div class="sidebar-overlay"></div>
 <script src="sidebar.js"></script>
 <script>
-  function saveConfig() {
+  function readConfigForm() {
+    const interval = document.getElementById('cfg-interval').value;
+    return {
+      tempUnit: document.getElementById('cfg-temp-unit').value,
+      humUnit: document.getElementById('cfg-hum-unit').value,
+      presUnit: document.getElementById('cfg-pres-unit').value,
+      samplingInterval: interval,
+      samplingIntervalMs: parseSamplingInterval(interval),
+      retention: document.getElementById('cfg-retention').value,
+      exportFormat: document.getElementById('cfg-export').value,
+      tempMin: Number(document.getElementById('cfg-temp-min').value),
+      tempMax: Number(document.getElementById('cfg-temp-max').value),
+      tempAlert: document.getElementById('cfg-temp-alert').checked,
+      humMin: Number(document.getElementById('cfg-hum-min').value),
+      humMax: Number(document.getElementById('cfg-hum-max').value),
+      humAlert: document.getElementById('cfg-hum-alert').checked,
+      presMin: Number(document.getElementById('cfg-pres-min').value),
+      presMax: Number(document.getElementById('cfg-pres-max').value),
+      presAlert: document.getElementById('cfg-pres-alert').checked
+    };
+  }
+
+  function applyConfigForm() {
+    const cfg = loadConfig();
+    document.getElementById('cfg-temp-unit').value = cfg.tempUnit || 'C';
+    document.getElementById('cfg-hum-unit').value = cfg.humUnit || 'RH';
+    document.getElementById('cfg-pres-unit').value = cfg.presUnit || 'Pa';
+    document.getElementById('cfg-interval').value = cfg.samplingInterval || '1 minuto';
+    document.getElementById('cfg-retention').value = cfg.retention || '30 días';
+    document.getElementById('cfg-export').value = cfg.exportFormat || 'CSV';
+    document.getElementById('cfg-temp-min').value = cfg.tempMin ?? 10;
+    document.getElementById('cfg-temp-max').value = cfg.tempMax ?? 40;
+    document.getElementById('cfg-temp-alert').checked = cfg.tempAlert ?? true;
+    document.getElementById('cfg-hum-min').value = cfg.humMin ?? 20;
+    document.getElementById('cfg-hum-max').value = cfg.humMax ?? 85;
+    document.getElementById('cfg-hum-alert').checked = cfg.humAlert ?? true;
+    document.getElementById('cfg-pres-min').value = cfg.presMin ?? 97000;
+    document.getElementById('cfg-pres-max').value = cfg.presMax ?? 105000;
+    document.getElementById('cfg-pres-alert').checked = cfg.presAlert ?? false;
+  }
+
+  function showConfigToast() {
     const toast = document.getElementById('toast');
     toast.style.display = 'block';
     toast.style.animation = 'none';
@@ -246,9 +287,38 @@
     setTimeout(() => toast.style.display = 'none', 2500);
   }
 
-  // Update last sync time
-  document.getElementById('last-sync').textContent =
-    new Date().toLocaleTimeString('es-AR');
+  function saveConfigForm() {
+    saveConfig(readConfigForm());
+    document.getElementById('last-sync').textContent = formatArgentinaTime();
+    showConfigToast();
+  }
+
+  function resetConfigForm() {
+    saveConfig({
+      tempUnit: 'C',
+      humUnit: 'RH',
+      presUnit: 'Pa',
+      samplingInterval: '1 minuto',
+      samplingIntervalMs: parseSamplingInterval('1 minuto'),
+      retention: '30 días',
+      exportFormat: 'CSV',
+      tempMin: 10,
+      tempMax: 40,
+      tempAlert: true,
+      humMin: 20,
+      humMax: 85,
+      humAlert: true,
+      presMin: 97000,
+      presMax: 105000,
+      presAlert: false
+    });
+    applyConfigForm();
+    document.getElementById('last-sync').textContent = formatArgentinaTime();
+    showConfigToast();
+  }
+
+  applyConfigForm();
+  document.getElementById('last-sync').textContent = formatArgentinaTime();
 </script>
 </body>
 </html>

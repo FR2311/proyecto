@@ -33,6 +33,39 @@ function saveConfig(patch) {
 
 /* ===== DATOS REACTIVOS ===== */
 const DATA_POINTS = 24;
+const ARG_TIME_ZONE = 'America/Argentina/Buenos_Aires';
+const DEFAULT_SAMPLING_INTERVAL_MS = 60 * 1000;
+let dataAutoRefreshTimer = null;
+const argentinaClockTimers = {};
+
+function formatArgentinaTime(date = new Date()) {
+  return date.toLocaleTimeString('es-AR', { timeZone: ARG_TIME_ZONE });
+}
+
+function formatArgentinaDateTime(date = new Date()) {
+  return date.toLocaleString('es-AR', {
+    timeZone: ARG_TIME_ZONE,
+    dateStyle: 'short',
+    timeStyle: 'medium'
+  });
+}
+
+function parseSamplingInterval(value) {
+  const match = String(value || '').trim().toLowerCase().match(/^(\d+(?:[.,]\d+)?)\s*(segundo|segundos|minuto|minutos|hora|horas)$/);
+  if (!match) return DEFAULT_SAMPLING_INTERVAL_MS;
+
+  const amount = parseFloat(match[1].replace(',', '.'));
+  const unit = match[2];
+  if (unit.startsWith('segundo')) return amount * 1000;
+  if (unit.startsWith('minuto')) return amount * 60 * 1000;
+  if (unit.startsWith('hora')) return amount * 60 * 60 * 1000;
+  return DEFAULT_SAMPLING_INTERVAL_MS;
+}
+
+function getSamplingIntervalMs() {
+  const cfg = loadConfig();
+  return Number(cfg.samplingIntervalMs) || parseSamplingInterval(cfg.samplingInterval) || DEFAULT_SAMPLING_INTERVAL_MS;
+}
 
 function randomBetween(min, max, decimals = 1) {
   return parseFloat((Math.random() * (max - min) + min).toFixed(decimals));
@@ -49,9 +82,15 @@ function generateSeries(base, variance, count, decimals = 1) {
 
 function hourLabels() {
   const now = new Date();
+  const interval = getSamplingIntervalMs();
   return Array.from({ length: DATA_POINTS }, (_, i) => {
-    const d = new Date(now - (DATA_POINTS - 1 - i) * 3600 * 1000);
-    return d.getHours().toString().padStart(2, '0') + ':00';
+    const d = new Date(now - (DATA_POINTS - 1 - i) * interval);
+    return d.toLocaleTimeString('es-AR', {
+      timeZone: ARG_TIME_ZONE,
+      hour: '2-digit',
+      minute: '2-digit',
+      second: interval < 60 * 1000 ? '2-digit' : undefined
+    });
   });
 }
 
@@ -66,6 +105,22 @@ function regenerateData() {
   TEMP_DATA   = generateSeries(24, 1.5, DATA_POINTS);
   HUM_DATA    = generateSeries(62, 3,   DATA_POINTS);
   PRES_DATA   = generateSeries(101325, 150, DATA_POINTS, 0);
+}
+
+function appendMeasurement() {
+  const lastTemp = TEMP_DATA[TEMP_DATA.length - 1] ?? 24;
+  const lastHum = HUM_DATA[HUM_DATA.length - 1] ?? 62;
+  const lastPres = PRES_DATA[PRES_DATA.length - 1] ?? 101325;
+
+  TEMP_DATA = [...TEMP_DATA.slice(1), parseFloat(Math.max(18, Math.min(32, lastTemp + randomBetween(-0.6, 0.6))).toFixed(1))];
+  HUM_DATA = [...HUM_DATA.slice(1), parseFloat(Math.max(35, Math.min(90, lastHum + randomBetween(-1.2, 1.2))).toFixed(1))];
+  PRES_DATA = [...PRES_DATA.slice(1), Math.round(Math.max(99000, Math.min(103500, lastPres + randomBetween(-45, 45, 0))))];
+  HOUR_LABELS = hourLabels();
+}
+
+function startDataAutoRefresh(callback) {
+  if (dataAutoRefreshTimer) clearInterval(dataAutoRefreshTimer);
+  dataAutoRefreshTimer = setInterval(callback, getSamplingIntervalMs());
 }
 
 /* ===== OPCIONES DE CHARTS ===== */
@@ -107,19 +162,26 @@ function toAbsoluteHumidity(rh, tempC) {
 /* ===== UTILIDADES DOM ===== */
 function updateTimestamp(id) {
   const el = document.getElementById(id || 'last-update');
-  if (el) el.textContent = new Date().toLocaleTimeString('es-AR');
+  if (el) el.textContent = formatArgentinaTime();
+}
+
+function startArgentinaClock(id = 'last-update') {
+  updateTimestamp(id);
+  if (argentinaClockTimers[id]) clearInterval(argentinaClockTimers[id]);
+  argentinaClockTimers[id] = setInterval(() => updateTimestamp(id), 1000);
 }
 
 function makeTableRows(count = 8) {
   const now = Date.now();
+  const interval = getSamplingIntervalMs();
   return Array.from({ length: count }, (_, i) => {
-    const t  = new Date(now - i * 60000);
+    const t  = new Date(now - i * interval);
     const tc = TEMP_DATA[TEMP_DATA.length - 1 - i] ?? randomBetween(22, 26);
     const rh = HUM_DATA[HUM_DATA.length  - 1 - i] ?? randomBetween(58, 66);
     const pa = PRES_DATA[PRES_DATA.length - 1 - i] ?? 101325;
     const st = i === 3 ? 'warning' : 'ok';
     return `<tr>
-      <td>${t.toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'medium' })}</td>
+      <td>${formatArgentinaDateTime(t)}</td>
       <td>${tc} °C</td>
       <td>${rh} %HR</td>
       <td>${pa.toLocaleString('es-AR')} Pa</td>
@@ -166,7 +228,7 @@ function initDashboard() {
     pres: { color: saved.pres?.color || DS_DEFAULTS.pres.color, visible: saved.pres?.visible ?? true }
   };
 
-  updateTimestamp('last-update');
+  startArgentinaClock('last-update');
   _updateDashCards();
   _buildMainChart();
   _initColorPickers();
@@ -174,6 +236,8 @@ function initDashboard() {
 
   const tbody = document.getElementById('table-body');
   if (tbody) tbody.innerHTML = makeTableRows();
+
+  startDataAutoRefresh(refreshData);
 }
 
 function _updateDashCards() {
@@ -359,7 +423,7 @@ function toggleDataset(key, visible) {
 }
 
 function refreshData() {
-  regenerateData();
+  appendMeasurement();
   updateTimestamp('last-update');
   _updateDashCards();
   _buildMainChart();
@@ -379,16 +443,23 @@ function initTemperatura() {
   const unit = cfg.tempUnit || 'C';
   currentTempUnit = unit;
 
-  // Marca el botón activo según la preferencia guardada
-  document.querySelectorAll('.unit-btn').forEach(b => {
-    b.classList.toggle('active', b.dataset.unit === unit);
-  });
-
-  updateTimestamp('last-update');
+  startArgentinaClock('last-update');
   renderTempValues(unit);
   renderTempChart(unit);
   const tbody = document.getElementById('table-body-temp');
   if (tbody) tbody.innerHTML = makeTempRows(unit);
+
+  startDataAutoRefresh(refreshTemperatura);
+}
+
+function refreshTemperatura() {
+  appendMeasurement();
+  updateTimestamp('last-update');
+  renderTempValues(currentTempUnit);
+  renderTempChart(currentTempUnit);
+  const tbody = document.getElementById('table-body-temp');
+  if (tbody) tbody.innerHTML = makeTempRows(currentTempUnit);
+  if (typeof updateConversionList === 'function') updateConversionList(currentTempUnit);
 }
 
 function selectTempUnit(unit) {
@@ -436,11 +507,12 @@ function renderTempChart(unit) {
 
 function makeTempRows(unit) {
   const now = Date.now();
+  const interval = getSamplingIntervalMs();
   return Array.from({ length: 8 }, (_, i) => {
-    const t   = new Date(now - i * 60000);
+    const t   = new Date(now - i * interval);
     const raw = TEMP_DATA[TEMP_DATA.length - 1 - i] ?? 24;
     return `<tr>
-      <td>${t.toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'medium' })}</td>
+      <td>${formatArgentinaDateTime(t)}</td>
       <td>${convertTemp(raw, 'C')} °C</td>
       <td>${convertTemp(raw, 'K')} K</td>
       <td>${convertTemp(raw, 'F')} °F</td>
@@ -458,15 +530,25 @@ function initHumedad() {
   const unit = cfg.humUnit || 'RH';
   currentHumUnit = unit;
 
-  document.querySelectorAll('.unit-btn').forEach(b => {
-    b.classList.toggle('active', b.dataset.unit === unit);
-  });
-
-  updateTimestamp('last-update');
+  startArgentinaClock('last-update');
   renderHumValues(unit);
   renderHumChart(unit);
   const tbody = document.getElementById('table-body-hum');
   if (tbody) tbody.innerHTML = makeHumRows();
+
+  startDataAutoRefresh(refreshHumedad);
+}
+
+function refreshHumedad() {
+  appendMeasurement();
+  updateTimestamp('last-update');
+  renderHumValues(currentHumUnit);
+  renderHumChart(currentHumUnit);
+  const tbody = document.getElementById('table-body-hum');
+  if (tbody) tbody.innerHTML = makeHumRows();
+  if (typeof updateHumPointer === 'function') updateHumPointer(currentHumUnit);
+  if (typeof updateHumStatus === 'function') updateHumStatus();
+  if (typeof updateHumEquiv === 'function') updateHumEquiv();
 }
 
 function selectHumUnit(unit) {
@@ -526,13 +608,14 @@ function renderHumChart(unit) {
 
 function makeHumRows() {
   const now = Date.now();
+  const interval = getSamplingIntervalMs();
   return Array.from({ length: 8 }, (_, i) => {
-    const t  = new Date(now - i * 60000);
+    const t  = new Date(now - i * interval);
     const rh = HUM_DATA[HUM_DATA.length - 1 - i] ?? 62;
     const tc = TEMP_DATA[TEMP_DATA.length - 1 - i] ?? 24;
     const ab = toAbsoluteHumidity(rh, tc);
     return `<tr>
-      <td>${t.toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'medium' })}</td>
+      <td>${formatArgentinaDateTime(t)}</td>
       <td>${rh.toFixed(1)} %HR</td>
       <td>${ab.toFixed(2)} g/m³</td>
       <td>${tc} °C</td>
@@ -545,6 +628,16 @@ function makeHumRows() {
 let presChartInst = null;
 
 function initPresion() {
+  startArgentinaClock('last-update');
+  _renderPresValues();
+  const tbody = document.getElementById('table-body-pres');
+  if (tbody) tbody.innerHTML = makePresRows();
+  _buildPresChart();
+  startDataAutoRefresh(refreshPresion);
+}
+
+function refreshPresion() {
+  appendMeasurement();
   updateTimestamp('last-update');
   _renderPresValues();
   const tbody = document.getElementById('table-body-pres');
@@ -580,11 +673,12 @@ function _buildPresChart() {
 
 function makePresRows() {
   const now = Date.now();
+  const interval = getSamplingIntervalMs();
   return Array.from({ length: 8 }, (_, i) => {
-    const t  = new Date(now - i * 60000);
+    const t  = new Date(now - i * interval);
     const pa = PRES_DATA[PRES_DATA.length - 1 - i] ?? 101325;
     return `<tr>
-      <td>${t.toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'medium' })}</td>
+      <td>${formatArgentinaDateTime(t)}</td>
       <td>${pa.toLocaleString('es-AR')} Pa</td>
       <td>${(pa / 100).toFixed(1)} hPa</td>
       <td>${(pa / 101325).toFixed(4)} atm</td>
@@ -597,6 +691,14 @@ function makePresRows() {
 let histChartInst = null;
 
 function initHistorial() {
+  startArgentinaClock('last-update');
+  renderHistorialTable();
+  renderHistorialChart();
+  startDataAutoRefresh(refreshHistorial);
+}
+
+function refreshHistorial() {
+  appendMeasurement();
   updateTimestamp('last-update');
   renderHistorialTable();
   renderHistorialChart();
@@ -606,13 +708,14 @@ function renderHistorialTable() {
   const tbody = document.getElementById('table-hist');
   if (!tbody) return;
   const now = Date.now();
+  const interval = getSamplingIntervalMs();
   tbody.innerHTML = Array.from({ length: 20 }, (_, i) => {
-    const t  = new Date(now - i * 60000);
+    const t  = new Date(now - i * interval);
     const tc = TEMP_DATA[TEMP_DATA.length - 1 - (i % DATA_POINTS)] ?? randomBetween(22, 26);
     const rh = HUM_DATA[HUM_DATA.length  - 1 - (i % DATA_POINTS)] ?? randomBetween(58, 66);
     const pa = PRES_DATA[PRES_DATA.length - 1 - (i % DATA_POINTS)] ?? 101325;
     return `<tr>
-      <td>${t.toLocaleString('es-AR', { dateStyle: 'short', timeStyle: 'medium' })}</td>
+      <td>${formatArgentinaDateTime(t)}</td>
       <td>${tc} °C</td>
       <td>${rh.toFixed(1)} %HR</td>
       <td>${pa.toLocaleString('es-AR')} Pa</td>
