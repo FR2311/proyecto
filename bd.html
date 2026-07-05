@@ -67,7 +67,7 @@
         <span class="update-badge">Actualizado: <strong id="ultimaActualizacion">--:--:--</strong></span>
         <button class="dark-toggle" id="dark-toggle-btn" onclick="toggleDarkMode()"><span class="dt-icon">☀️</span><span class="dt-label">Claro</span></button>
         <button class="btn-outline" onclick="cerrarSesion()">Cerrar sesión</button>
-        <button class="btn-primary" onclick="cargarDatosBD()">Actualizar</button>
+        <button class="btn-primary" onclick="agregarMedicionSimuladaBD()">Actualizar</button>
       </div>
     </header>
 
@@ -149,7 +149,7 @@
 <div class="sidebar-overlay"></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-api.js?v=auth-session-fix"></script>
-<script src="app.js?v=arg-time-fix"></script>
+<script src="app.js?v=aligned-sampling"></script>
 <script>
   const bdFormatArgentinaTime = window.formatArgentinaTime || function(date = new Date()) {
     return date.toLocaleTimeString('es-AR', { timeZone: 'America/Argentina/Buenos_Aires' });
@@ -163,6 +163,19 @@
     });
   };
 
+  let bdReadings = [];
+  let bdSamplingTimer = null;
+  let bdSamplingTimeout = null;
+
+  function bdRandomBetween(min, max, decimals = 1) {
+    return parseFloat((Math.random() * (max - min) + min).toFixed(decimals));
+  }
+
+  function bdNumericValue(value, fallback) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+
   function valorMedicion(item, nombres) {
     const nombre = nombres.find(key => item && Object.prototype.hasOwnProperty.call(item, key));
     return nombre ? item[nombre] : '--';
@@ -170,6 +183,24 @@
 
   function fechaMedicion(item) {
     return valorMedicion(item, ['fecha', 'fecha_hora', 'created_at', 'timestamp', 'time', 'inserted_at']);
+  }
+
+  function bdIntervaloMuestreo() {
+    return typeof getSamplingIntervalMs === 'function' ? getSamplingIntervalMs() : 60000;
+  }
+
+  function bdTiempoMuestra(interval = bdIntervaloMuestreo()) {
+    return typeof getCurrentSampleTime === 'function'
+      ? getCurrentSampleTime(interval)
+      : new Date();
+  }
+
+  function bdTiempoHastaProximaMuestra(interval = bdIntervaloMuestreo()) {
+    if (typeof getMsUntilNextSample === 'function') return getMsUntilNextSample(interval);
+
+    const remainder = Date.now() % interval;
+    const delay = remainder === 0 ? interval : interval - remainder;
+    return Math.max(250, delay);
   }
 
   function actualizarResumen(actual) {
@@ -184,6 +215,65 @@
       actual.presion ?? valorMedicion(medicion, ['presion', 'presion_pa', 'pressure', 'pressure_pa']);
     const estado = valorMedicion(medicion, ['estado', 'status']);
     document.getElementById('estado').textContent = estado !== '--' ? estado : 'Normal';
+  }
+
+  function normalizarMedicion(item) {
+    const medicion = item?.medicion || item || {};
+    return {
+      created_at: fechaMedicion(medicion) !== '--' ? fechaMedicion(medicion) : bdTiempoMuestra().toISOString(),
+      temperatura: bdNumericValue(item?.temperatura ?? valorMedicion(medicion, ['temperatura', 'temperatura_c', 'temp', 'temperature']), bdRandomBetween(22, 28)),
+      humedad: bdNumericValue(item?.humedad ?? valorMedicion(medicion, ['humedad', 'humedad_hr', 'hum', 'humidity']), bdRandomBetween(55, 70)),
+      presion: bdNumericValue(item?.presion ?? valorMedicion(medicion, ['presion', 'presion_pa', 'pressure', 'pressure_pa']), bdRandomBetween(100000, 102000, 0)),
+      estado: valorMedicion(medicion, ['estado', 'status']) !== '--' ? valorMedicion(medicion, ['estado', 'status']) : 'Normal'
+    };
+  }
+
+  function crearMedicionSimulada(base = null, sampleDate = bdTiempoMuestra()) {
+    const last = base || bdReadings[0] || {};
+    return {
+      created_at: sampleDate.toISOString(),
+      temperatura: Math.max(0, bdNumericValue(last.temperatura, 24) + bdRandomBetween(-0.5, 0.5)),
+      humedad: Math.max(0, Math.min(100, bdNumericValue(last.humedad, 62) + bdRandomBetween(-1.5, 1.5))),
+      presion: Math.max(0, Math.round(bdNumericValue(last.presion, 101325) + bdRandomBetween(-80, 80, 0))),
+      estado: 'Normal'
+    };
+  }
+
+  function crearHistorialSimulado(cantidad = 20, base = null) {
+    const interval = bdIntervaloMuestreo();
+    const ahora = bdTiempoMuestra(interval).getTime();
+    let last = base ? normalizarMedicion(base) : null;
+
+    return Array.from({ length: cantidad }, (_, index) => {
+      const sampleDate = new Date(ahora - index * interval);
+      const item = crearMedicionSimulada(last, sampleDate);
+      last = item;
+      return item;
+    });
+  }
+
+  function renderBDLiveData() {
+    const actual = bdReadings[0] || crearMedicionSimulada();
+    actualizarResumen(actual);
+    renderTablaMediciones(bdReadings);
+    document.getElementById('ultimaActualizacion').textContent = bdFormatArgentinaTime();
+  }
+
+  function agregarMedicionSimuladaBD() {
+    const interval = bdIntervaloMuestreo();
+    bdReadings = [crearMedicionSimulada(bdReadings[0], bdTiempoMuestra(interval)), ...bdReadings].slice(0, 20);
+    renderBDLiveData();
+  }
+
+  function iniciarMuestreoBD() {
+    if (bdSamplingTimer) clearInterval(bdSamplingTimer);
+    if (bdSamplingTimeout) clearTimeout(bdSamplingTimeout);
+
+    const interval = bdIntervaloMuestreo();
+    bdSamplingTimeout = setTimeout(() => {
+      agregarMedicionSimuladaBD();
+      bdSamplingTimer = setInterval(agregarMedicionSimuladaBD, interval);
+    }, bdTiempoHastaProximaMuestra(interval));
   }
 
   function renderTablaMediciones(historial) {
@@ -223,13 +313,24 @@
         obtenerHistorialMediciones()
       ]);
 
-      actualizarResumen(Array.isArray(dashboard) ? dashboard[0] : dashboard);
-      renderTablaMediciones(historial);
+      const dashboardActual = Array.isArray(dashboard) ? dashboard[0] : dashboard;
+      const historialNormalizado = Array.isArray(historial)
+        ? historial.map(normalizarMedicion).slice(0, 20)
+        : [];
+
+      bdReadings = historialNormalizado.length
+        ? historialNormalizado
+        : crearHistorialSimulado(20, dashboardActual);
+
+      bdReadings[0] = normalizarMedicion(dashboardActual || bdReadings[0]);
+      renderBDLiveData();
 
       document.getElementById('ultimaActualizacion').textContent = bdFormatArgentinaTime();
     } catch (error) {
       console.error(error);
-      errorBox.textContent = error.message || 'Error al cargar datos desde Supabase.';
+      bdReadings = bdReadings.length ? bdReadings : crearHistorialSimulado(20);
+      renderBDLiveData();
+      errorBox.textContent = 'Usando datos simulados porque no se pudieron cargar datos desde Supabase.';
       errorBox.style.display = 'block';
     }
   }
@@ -242,8 +343,12 @@
       document.getElementById('ultimaActualizacion').textContent = bdFormatArgentinaTime();
     }, 1000);
     await cargarDatosBD();
-    setInterval(cargarDatosBD, 5000);
+    iniciarMuestreoBD();
   })();
+
+  window.addEventListener('storage', event => {
+    if (event.key === 'datalogger_config') iniciarMuestreoBD();
+  });
 </script>
 <script src="sidebar.js"></script>
 </body>

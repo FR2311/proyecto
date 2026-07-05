@@ -27,8 +27,12 @@ function _updateDarkToggleBtn() {
 document.addEventListener('DOMContentLoaded', _updateDarkToggleBtn);
 
 function saveConfig(patch) {
-  const cfg = { ...loadConfig(), ...patch };
+  const previous = loadConfig();
+  const cfg = { ...previous, ...patch };
   localStorage.setItem(CFG_KEY, JSON.stringify(cfg));
+  window.dispatchEvent(new CustomEvent('datalogger:configchange', {
+    detail: { previous, current: cfg, patch }
+  }));
 }
 
 /* ===== DATOS REACTIVOS ===== */
@@ -36,6 +40,8 @@ const DATA_POINTS = 24;
 const ARG_TIME_ZONE = 'America/Argentina/Buenos_Aires';
 const DEFAULT_SAMPLING_INTERVAL_MS = 60 * 1000;
 let dataAutoRefreshTimer = null;
+let dataAutoRefreshTimeout = null;
+let dataAutoRefreshCallback = null;
 const argentinaClockTimers = {};
 
 function formatArgentinaTime(date = new Date()) {
@@ -55,6 +61,8 @@ function parseSamplingInterval(value) {
   if (!match) return DEFAULT_SAMPLING_INTERVAL_MS;
 
   const amount = parseFloat(match[1].replace(',', '.'));
+  if (!Number.isFinite(amount) || amount <= 0) return DEFAULT_SAMPLING_INTERVAL_MS;
+
   const unit = match[2];
   if (unit.startsWith('segundo')) return amount * 1000;
   if (unit.startsWith('minuto')) return amount * 60 * 1000;
@@ -64,13 +72,36 @@ function parseSamplingInterval(value) {
 
 function getSamplingIntervalMs() {
   const cfg = loadConfig();
-  return Number(cfg.samplingIntervalMs) || parseSamplingInterval(cfg.samplingInterval) || DEFAULT_SAMPLING_INTERVAL_MS;
+  const stored = Number(cfg.samplingIntervalMs);
+  if (Number.isFinite(stored) && stored > 0) return stored;
+
+  const parsed = parseSamplingInterval(cfg.samplingInterval);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_SAMPLING_INTERVAL_MS;
+}
+
+function getCurrentSampleTime(interval = getSamplingIntervalMs()) {
+  interval = Number(interval);
+  if (!Number.isFinite(interval) || interval <= 0) interval = DEFAULT_SAMPLING_INTERVAL_MS;
+
+  const now = Date.now();
+  return new Date(now - (now % interval));
+}
+
+function getMsUntilNextSample(interval = getSamplingIntervalMs()) {
+  interval = Number(interval);
+  if (!Number.isFinite(interval) || interval <= 0) interval = DEFAULT_SAMPLING_INTERVAL_MS;
+
+  const remainder = Date.now() % interval;
+  const delay = remainder === 0 ? interval : interval - remainder;
+  return Math.max(250, delay);
 }
 
 window.formatArgentinaTime = formatArgentinaTime;
 window.formatArgentinaDateTime = formatArgentinaDateTime;
 window.parseSamplingInterval = parseSamplingInterval;
 window.getSamplingIntervalMs = getSamplingIntervalMs;
+window.getCurrentSampleTime = getCurrentSampleTime;
+window.getMsUntilNextSample = getMsUntilNextSample;
 
 function randomBetween(min, max, decimals = 1) {
   return parseFloat((Math.random() * (max - min) + min).toFixed(decimals));
@@ -86,8 +117,8 @@ function generateSeries(base, variance, count, decimals = 1) {
 }
 
 function hourLabels() {
-  const now = new Date();
   const interval = getSamplingIntervalMs();
+  const now = getCurrentSampleTime(interval);
   return Array.from({ length: DATA_POINTS }, (_, i) => {
     const d = new Date(now - (DATA_POINTS - 1 - i) * interval);
     return d.toLocaleTimeString('es-AR', {
@@ -124,9 +155,35 @@ function appendMeasurement() {
 }
 
 function startDataAutoRefresh(callback) {
+  dataAutoRefreshCallback = callback;
   if (dataAutoRefreshTimer) clearInterval(dataAutoRefreshTimer);
-  dataAutoRefreshTimer = setInterval(callback, getSamplingIntervalMs());
+  if (dataAutoRefreshTimeout) clearTimeout(dataAutoRefreshTimeout);
+
+  const interval = getSamplingIntervalMs();
+  dataAutoRefreshTimeout = setTimeout(() => {
+    callback();
+    dataAutoRefreshTimer = setInterval(callback, interval);
+  }, getMsUntilNextSample(interval));
 }
+
+function restartDataAutoRefresh() {
+  if (dataAutoRefreshCallback) startDataAutoRefresh(dataAutoRefreshCallback);
+}
+
+function samplingIntervalChanged(previous = {}, current = {}) {
+  const before = Number(previous.samplingIntervalMs) || parseSamplingInterval(previous.samplingInterval);
+  const after = Number(current.samplingIntervalMs) || parseSamplingInterval(current.samplingInterval);
+  return before !== after;
+}
+
+window.addEventListener('storage', event => {
+  if (event.key === CFG_KEY) restartDataAutoRefresh();
+});
+
+window.addEventListener('datalogger:configchange', event => {
+  const detail = event.detail || {};
+  if (samplingIntervalChanged(detail.previous, detail.current)) restartDataAutoRefresh();
+});
 
 /* ===== OPCIONES DE CHARTS ===== */
 const CHART_DEFAULTS = {
@@ -177,8 +234,8 @@ function startArgentinaClock(id = 'last-update') {
 }
 
 function makeTableRows(count = 8) {
-  const now = Date.now();
   const interval = getSamplingIntervalMs();
+  const now = getCurrentSampleTime(interval).getTime();
   return Array.from({ length: count }, (_, i) => {
     const t  = new Date(now - i * interval);
     const tc = TEMP_DATA[TEMP_DATA.length - 1 - i] ?? randomBetween(22, 26);
@@ -511,8 +568,8 @@ function renderTempChart(unit) {
 }
 
 function makeTempRows(unit) {
-  const now = Date.now();
   const interval = getSamplingIntervalMs();
+  const now = getCurrentSampleTime(interval).getTime();
   return Array.from({ length: 8 }, (_, i) => {
     const t   = new Date(now - i * interval);
     const raw = TEMP_DATA[TEMP_DATA.length - 1 - i] ?? 24;
@@ -612,8 +669,8 @@ function renderHumChart(unit) {
 }
 
 function makeHumRows() {
-  const now = Date.now();
   const interval = getSamplingIntervalMs();
+  const now = getCurrentSampleTime(interval).getTime();
   return Array.from({ length: 8 }, (_, i) => {
     const t  = new Date(now - i * interval);
     const rh = HUM_DATA[HUM_DATA.length - 1 - i] ?? 62;
@@ -677,8 +734,8 @@ function _buildPresChart() {
 }
 
 function makePresRows() {
-  const now = Date.now();
   const interval = getSamplingIntervalMs();
+  const now = getCurrentSampleTime(interval).getTime();
   return Array.from({ length: 8 }, (_, i) => {
     const t  = new Date(now - i * interval);
     const pa = PRES_DATA[PRES_DATA.length - 1 - i] ?? 101325;
@@ -712,8 +769,8 @@ function refreshHistorial() {
 function renderHistorialTable() {
   const tbody = document.getElementById('table-hist');
   if (!tbody) return;
-  const now = Date.now();
   const interval = getSamplingIntervalMs();
+  const now = getCurrentSampleTime(interval).getTime();
   tbody.innerHTML = Array.from({ length: 20 }, (_, i) => {
     const t  = new Date(now - i * interval);
     const tc = TEMP_DATA[TEMP_DATA.length - 1 - (i % DATA_POINTS)] ?? randomBetween(22, 26);
