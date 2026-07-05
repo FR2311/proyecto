@@ -216,6 +216,43 @@ function convertTemp(c, unit) {
 }
 function tempUnit(unit) { return unit === 'C' ? '°C' : unit === 'K' ? 'K' : '°F'; }
 
+function configNumber(value, fallback, max = Infinity) {
+  const parsed = Number(value);
+  const safe = Number.isFinite(parsed) ? parsed : fallback;
+  return Math.max(0, Math.min(max, safe));
+}
+
+function getTempAlertConfig() {
+  const cfg = loadConfig();
+  const min = configNumber(cfg.tempMin, 10);
+  const max = Math.max(min, configNumber(cfg.tempMax, 40));
+
+  return {
+    enabled: cfg.tempAlert ?? true,
+    min,
+    max
+  };
+}
+
+function getTempAlertState(tempC) {
+  const value = Number(tempC);
+  const cfg = getTempAlertConfig();
+
+  if (!cfg.enabled || !Number.isFinite(value)) {
+    return { active: false, badge: 'ok', label: 'Normal', trendClass: 'stable' };
+  }
+
+  if (value < cfg.min) {
+    return { active: true, badge: 'error', label: 'Alerta baja', trendClass: 'up' };
+  }
+
+  if (value > cfg.max) {
+    return { active: true, badge: 'error', label: 'Alerta alta', trendClass: 'up' };
+  }
+
+  return { active: false, badge: 'ok', label: 'Normal', trendClass: 'stable' };
+}
+
 function toAbsoluteHumidity(rh, tempC) {
   const es = 6.112 * Math.exp((17.67 * tempC) / (tempC + 243.5));
   return parseFloat(((rh / 100) * es * 216.7 / (tempC + 273.15)).toFixed(2));
@@ -241,13 +278,13 @@ function makeTableRows(count = 8) {
     const tc = TEMP_DATA[TEMP_DATA.length - 1 - i] ?? randomBetween(22, 26);
     const rh = HUM_DATA[HUM_DATA.length  - 1 - i] ?? randomBetween(58, 66);
     const pa = PRES_DATA[PRES_DATA.length - 1 - i] ?? 101325;
-    const st = i === 3 ? 'warning' : 'ok';
+    const tempState = getTempAlertState(tc);
     return `<tr>
       <td>${formatArgentinaDateTime(t)}</td>
       <td>${tc} °C</td>
       <td>${rh} %HR</td>
       <td>${pa.toLocaleString('es-AR')} Pa</td>
-      <td><span class="badge ${st}">${i === 3 ? 'Alerta' : 'Normal'}</span></td>
+      <td><span class="badge ${tempState.badge}">${tempState.label}</span></td>
     </tr>`;
   }).join('');
 }
@@ -317,6 +354,14 @@ function _updateDashCards() {
   if (hv)   hv.textContent   = rh.toFixed(1);
   if (pv)   pv.textContent   = pa.toLocaleString('es-AR');
   if (tuEl) tuEl.textContent = tempUnit(tu);
+
+  const tempState = getTempAlertState(last);
+  const tempTrend = tv?.closest('.card')?.querySelector('.trend');
+  if (tempTrend) {
+    tempTrend.classList.remove('up', 'down', 'stable');
+    tempTrend.classList.add(tempState.trendClass);
+    tempTrend.textContent = tempState.label;
+  }
 
   // Valores en controles del gráfico
   const cfg2 = loadConfig();
@@ -573,12 +618,13 @@ function makeTempRows(unit) {
   return Array.from({ length: 8 }, (_, i) => {
     const t   = new Date(now - i * interval);
     const raw = TEMP_DATA[TEMP_DATA.length - 1 - i] ?? 24;
+    const tempState = getTempAlertState(raw);
     return `<tr>
       <td>${formatArgentinaDateTime(t)}</td>
       <td>${convertTemp(raw, 'C')} °C</td>
       <td>${convertTemp(raw, 'K')} K</td>
       <td>${convertTemp(raw, 'F')} °F</td>
-      <td><span class="badge ok">Normal</span></td>
+      <td><span class="badge ${tempState.badge}">${tempState.label}</span></td>
     </tr>`;
   }).join('');
 }
