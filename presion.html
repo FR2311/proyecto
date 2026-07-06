@@ -173,11 +173,18 @@
   </main>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-api.js?v=session-options"></script>
 <script src="app.js?v=temp-alerts"></script>
 <script>
-  initPresion();
-  const paDisp = document.getElementById('pres-pa-display');
-  if (paDisp) paDisp.textContent = PRES_DATA[PRES_DATA.length-1].toLocaleString('es-AR') + ' Pa';
+  (async function () {
+    const session = await window.protegerPagina();
+    if (!session) return;
+
+    initPresion();
+    const paDisp = document.getElementById('pres-pa-display');
+    if (paDisp) paDisp.textContent = PRES_DATA[PRES_DATA.length-1].toLocaleString('es-AR') + ' Pa';
+  })();
 </script>
 <div class="sidebar-overlay"></div>
 <script src="sidebar.js"></script>

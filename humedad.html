@@ -172,6 +172,8 @@
   </main>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-api.js?v=session-options"></script>
 <script src="app.js?v=temp-alerts"></script>
 <script>
   const INFO_TEXTS = {
@@ -214,10 +216,15 @@
     if (elAbs) elAbs.textContent = abs.toFixed(2) + ' g/m³';
   }
 
-  initHumedad();
-  updateHumPointer('RH');
-  updateHumStatus();
-  updateHumEquiv();
+  (async function () {
+    const session = await window.protegerPagina();
+    if (!session) return;
+
+    initHumedad();
+    updateHumPointer('RH');
+    updateHumStatus();
+    updateHumEquiv();
+  })();
 </script>
 <div class="sidebar-overlay"></div>
 <script src="sidebar.js"></script>

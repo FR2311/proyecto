@@ -58,6 +58,44 @@
       line-height: 1.4;
     }
 
+    .login-error.success {
+      background: rgba(22, 163, 74, .12);
+      color: var(--green);
+    }
+
+    .login-option {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: .75rem;
+      flex-wrap: wrap;
+      font-size: .86rem;
+    }
+
+    .login-check {
+      display: inline-flex;
+      align-items: center;
+      gap: .45rem;
+      color: var(--text);
+      cursor: pointer;
+    }
+
+    .login-check input {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--blue);
+    }
+
+    .login-link {
+      border: 0;
+      background: transparent;
+      color: var(--blue);
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+      padding: 0;
+    }
+
     .login-actions {
       display: flex;
       justify-content: flex-end;
@@ -67,6 +105,7 @@
 
     body.dark .login-panel { background: rgb(26, 30, 42); border-color: rgb(40, 46, 65); }
     body.dark .login-error { background: rgba(255, 90, 90, .12); color: var(--red); }
+    body.dark .login-error.success { background: rgba(34, 197, 94, .12); color: var(--green); }
   </style>
 </head>
 <body>
@@ -91,18 +130,52 @@
           <input type="password" id="password" autocomplete="current-password" required/>
         </div>
 
+        <div class="login-option">
+          <label class="login-check" for="remember-session">
+            <input type="checkbox" id="remember-session"/>
+            <span>Recordar sesion en este dispositivo</span>
+          </label>
+          <button class="login-link" type="button" id="forgot-password">Recuperar contrasena</button>
+        </div>
+
         <div class="login-error" id="login-error"></div>
 
         <div class="login-actions">
-          <button class="btn-primary" type="submit" id="login-submit">Iniciar sesión</button>
+          <button class="btn-primary" type="submit" id="login-submit">Iniciar sesion</button>
+        </div>
+      </form>
+
+      <form class="login-form" id="recovery-form" hidden>
+        <div class="form-group" style="margin:0;">
+          <label for="new-password">Nueva contrasena</label>
+          <input type="password" id="new-password" autocomplete="new-password" minlength="6" required/>
+        </div>
+
+        <div class="form-group" style="margin:0;">
+          <label for="new-password-confirm">Confirmar contrasena</label>
+          <input type="password" id="new-password-confirm" autocomplete="new-password" minlength="6" required/>
+        </div>
+
+        <div class="login-error" id="recovery-error"></div>
+
+        <div class="login-actions">
+          <button class="btn-outline" type="button" id="recovery-back">Volver</button>
+          <button class="btn-primary" type="submit" id="recovery-submit">Actualizar contrasena</button>
         </div>
       </form>
     </section>
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="supabase-api.js?v=auth-session-fix"></script>
+  <script src="supabase-api.js?v=session-options"></script>
   <script>
+    const loginForm = document.getElementById('login-form');
+    const recoveryForm = document.getElementById('recovery-form');
+    const loginTitle = document.getElementById('login-title');
+    const loginSubtitle = document.querySelector('.login-subtitle');
+    const loginError = document.getElementById('login-error');
+    const recoveryError = document.getElementById('recovery-error');
+
     function destinoPostLogin() {
       const params = new URLSearchParams(window.location.search);
       const redirect = params.get('redirect');
@@ -114,49 +187,153 @@
       return redirect;
     }
 
-    function mostrarErrorLogin(message) {
-      const errorBox = document.getElementById('login-error');
-      errorBox.textContent = message;
-      errorBox.style.display = 'block';
+    function limpiarMensaje(box) {
+      box.textContent = '';
+      box.classList.remove('success');
+      box.style.display = 'none';
     }
 
-    async function redirigirSiYaHaySesion() {
-      const session = await window.obtenerSesionActual();
-      if (session) window.location.href = destinoPostLogin();
+    function mostrarMensaje(box, message, type = 'error') {
+      box.textContent = message;
+      box.classList.toggle('success', type === 'success');
+      box.style.display = 'block';
     }
 
-    document.getElementById('login-form').addEventListener('submit', async event => {
+    function mostrarLogin(message = '', type = 'error') {
+      loginTitle.textContent = 'Iniciar sesion';
+      loginSubtitle.textContent = 'Acceso al panel DataLogger';
+      loginForm.hidden = false;
+      recoveryForm.hidden = true;
+
+      limpiarMensaje(recoveryError);
+      limpiarMensaje(loginError);
+      if (message) mostrarMensaje(loginError, message, type);
+    }
+
+    function mostrarRecuperacion(message = '', type = 'error') {
+      loginTitle.textContent = 'Restablecer contrasena';
+      loginSubtitle.textContent = 'Ingresa una nueva contrasena para tu cuenta';
+      loginForm.hidden = true;
+      recoveryForm.hidden = false;
+
+      limpiarMensaje(loginError);
+      limpiarMensaje(recoveryError);
+      if (message) mostrarMensaje(recoveryError, message, type);
+    }
+
+    function vieneDeRecuperacion() {
+      const params = new URLSearchParams(window.location.search);
+      const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+      return params.get('recovery') === '1' || hashParams.get('type') === 'recovery';
+    }
+
+    loginForm.addEventListener('submit', async event => {
       event.preventDefault();
 
       const submit = document.getElementById('login-submit');
-      const errorBox = document.getElementById('login-error');
       const email = document.getElementById('email').value.trim();
       const password = document.getElementById('password').value;
+      const recordarSesion = document.getElementById('remember-session').checked;
 
-      errorBox.style.display = 'none';
+      limpiarMensaje(loginError);
       submit.disabled = true;
       submit.textContent = 'Ingresando...';
 
       try {
-        const { error } = await window.iniciarSesion(email, password);
+        const { error } = await window.iniciarSesion(email, password, { recordarSesion });
 
         if (error) {
-          mostrarErrorLogin(error.message || 'No se pudo iniciar sesion.');
+          mostrarMensaje(loginError, error.message || 'No se pudo iniciar sesion.');
           return;
         }
 
         window.location.href = destinoPostLogin();
       } catch (error) {
-        mostrarErrorLogin(error.message || 'No se pudo iniciar sesion.');
+        mostrarMensaje(loginError, error.message || 'No se pudo iniciar sesion.');
       } finally {
         submit.disabled = false;
-        submit.textContent = 'Iniciar sesión';
+        submit.textContent = 'Iniciar sesion';
       }
     });
 
-    redirigirSiYaHaySesion().catch(error => {
-      mostrarErrorLogin(error.message || 'No se pudo verificar la sesion.');
+    document.getElementById('forgot-password').addEventListener('click', async () => {
+      const email = document.getElementById('email').value.trim();
+      const button = document.getElementById('forgot-password');
+
+      limpiarMensaje(loginError);
+      if (!email) {
+        mostrarMensaje(loginError, 'Ingresa tu email para enviarte el recupero de contrasena.');
+        return;
+      }
+
+      button.disabled = true;
+      button.textContent = 'Enviando...';
+
+      try {
+        const { error } = await window.recuperarContrasena(email);
+        if (error) {
+          mostrarMensaje(loginError, error.message || 'No se pudo enviar el recupero de contrasena.');
+          return;
+        }
+
+        mostrarMensaje(loginError, 'Te enviamos un enlace para restablecer la contrasena.', 'success');
+      } catch (error) {
+        mostrarMensaje(loginError, error.message || 'No se pudo enviar el recupero de contrasena.');
+      } finally {
+        button.disabled = false;
+        button.textContent = 'Recuperar contrasena';
+      }
     });
+
+    recoveryForm.addEventListener('submit', async event => {
+      event.preventDefault();
+
+      const submit = document.getElementById('recovery-submit');
+      const password = document.getElementById('new-password').value;
+      const confirm = document.getElementById('new-password-confirm').value;
+
+      limpiarMensaje(recoveryError);
+      if (password.length < 6) {
+        mostrarMensaje(recoveryError, 'La contrasena debe tener al menos 6 caracteres.');
+        return;
+      }
+
+      if (password !== confirm) {
+        mostrarMensaje(recoveryError, 'Las contrasenas no coinciden.');
+        return;
+      }
+
+      submit.disabled = true;
+      submit.textContent = 'Actualizando...';
+
+      try {
+        const { error } = await window.actualizarContrasena(password);
+        if (error) {
+          mostrarMensaje(recoveryError, error.message || 'No se pudo actualizar la contrasena.');
+          return;
+        }
+
+        await window.cerrarSesion({ redirigir: false });
+        history.replaceState(null, '', 'login.html');
+        recoveryForm.reset();
+        mostrarLogin('Contrasena actualizada. Inicia sesion con la nueva contrasena.', 'success');
+      } catch (error) {
+        mostrarMensaje(recoveryError, error.message || 'No se pudo actualizar la contrasena.');
+      } finally {
+        submit.disabled = false;
+        submit.textContent = 'Actualizar contrasena';
+      }
+    });
+
+    document.getElementById('recovery-back').addEventListener('click', async () => {
+      await window.cerrarSesion({ redirigir: false }).catch(() => {});
+      history.replaceState(null, '', 'login.html');
+      mostrarLogin();
+    });
+
+    if (vieneDeRecuperacion()) {
+      mostrarRecuperacion();
+    }
   </script>
 </body>
 </html>

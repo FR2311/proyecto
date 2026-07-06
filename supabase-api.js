@@ -2,6 +2,8 @@
 const SUPABASE_URL = 'https://mknhezrdzhtangvuzkvq.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_gE7-6xmZFCPrLPbJLEjy2w_4RoC8puw";
 const SUPABASE_LOGIN_PAGE = 'login.html';
+const SUPABASE_REMEMBER_SESSION_KEY = 'datalogger_remember_session';
+const SUPABASE_TAB_SESSION_KEY = 'datalogger_tab_session';
 
 const SUPABASE_DEFAULT_TABLES = [
   'historial_mediciones',
@@ -90,8 +92,9 @@ function obtenerClienteSupabase() {
   return _supabaseClient;
 }
 
-async function obtenerSesionActual() {
+async function obtenerSesionActual(options = {}) {
   try {
+    const permitirSesionDeRecuperacion = Boolean(options.permitirSesionDeRecuperacion);
     const supabase = obtenerClienteSupabase();
     const { data, error } = await supabase.auth.getSession();
 
@@ -100,7 +103,11 @@ async function obtenerSesionActual() {
       return null;
     }
 
-    return data.session;
+    if (!data.session) return null;
+    if (permitirSesionDeRecuperacion || _sesionPermitidaEnEsteDispositivo()) return data.session;
+
+    await _cerrarSesionLocal(supabase);
+    return null;
   } catch (error) {
     console.error("Error obteniendo sesión:", error);
     return null;
@@ -130,19 +137,53 @@ async function protegerPagina() {
   return session;
 }
 
-async function iniciarSesion(email, password) {
+async function iniciarSesion(email, password, options = {}) {
   const supabase = obtenerClienteSupabase();
-  return supabase.auth.signInWithPassword({
+  const result = await supabase.auth.signInWithPassword({
     email,
     password
   });
+
+  if (!result.error && result.data?.session) {
+    _registrarSesionActiva(Boolean(options.recordarSesion));
+  }
+
+  return result;
 }
 
-async function cerrarSesion() {
+async function cerrarSesion(options = {}) {
   const supabase = obtenerClienteSupabase();
+  _limpiarPreferenciaSesion();
   const { error } = await supabase.auth.signOut();
   if (error) throw error;
-  window.location.href = SUPABASE_LOGIN_PAGE;
+  if (options.redirigir !== false) window.location.href = SUPABASE_LOGIN_PAGE;
+}
+
+async function recuperarContrasena(email) {
+  const supabase = obtenerClienteSupabase();
+  const redirectTo = new URL(SUPABASE_LOGIN_PAGE, window.location.href);
+  redirectTo.searchParams.set('recovery', '1');
+
+  return supabase.auth.resetPasswordForEmail(email, {
+    redirectTo: redirectTo.toString()
+  });
+}
+
+async function actualizarContrasena(password) {
+  const supabase = obtenerClienteSupabase();
+  const { data, error: sessionError } = await supabase.auth.getSession();
+
+  if (sessionError) return { data: null, error: sessionError };
+  if (!data.session) {
+    return {
+      data: null,
+      error: new Error('El enlace de recuperacion no es valido o ya vencio. Solicita uno nuevo.')
+    };
+  }
+
+  const result = await supabase.auth.updateUser({ password });
+  if (!result.error) _limpiarPreferenciaSesion();
+  return result;
 }
 
 async function _getSessionAccessToken() {
@@ -163,6 +204,70 @@ function _readLocalStorage(key) {
     return localStorage.getItem(key);
   } catch {
     return null;
+  }
+}
+
+function _writeLocalStorage(key, value) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {}
+}
+
+function _removeLocalStorage(key) {
+  try {
+    localStorage.removeItem(key);
+  } catch {}
+}
+
+function _readSessionStorage(key) {
+  try {
+    return sessionStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function _writeSessionStorage(key, value) {
+  try {
+    sessionStorage.setItem(key, value);
+  } catch {}
+}
+
+function _removeSessionStorage(key) {
+  try {
+    sessionStorage.removeItem(key);
+  } catch {}
+}
+
+function _registrarSesionActiva(recordarSesion) {
+  _writeSessionStorage(SUPABASE_TAB_SESSION_KEY, '1');
+
+  if (recordarSesion) {
+    _writeLocalStorage(SUPABASE_REMEMBER_SESSION_KEY, '1');
+  } else {
+    _removeLocalStorage(SUPABASE_REMEMBER_SESSION_KEY);
+  }
+}
+
+function _limpiarPreferenciaSesion() {
+  _removeSessionStorage(SUPABASE_TAB_SESSION_KEY);
+  _removeLocalStorage(SUPABASE_REMEMBER_SESSION_KEY);
+}
+
+function _sesionPermitidaEnEsteDispositivo() {
+  return _readLocalStorage(SUPABASE_REMEMBER_SESSION_KEY) === '1' ||
+    _readSessionStorage(SUPABASE_TAB_SESSION_KEY) === '1';
+}
+
+async function _cerrarSesionLocal(supabase) {
+  _limpiarPreferenciaSesion();
+
+  try {
+    await supabase.auth.signOut({ scope: 'local' });
+  } catch {
+    try {
+      await supabase.auth.signOut();
+    } catch {}
   }
 }
 
@@ -307,6 +412,8 @@ window.obtenerSesionActual = obtenerSesionActual;
 window.iniciarSesion = iniciarSesion;
 window.protegerPagina = protegerPagina;
 window.cerrarSesion = cerrarSesion;
+window.recuperarContrasena = recuperarContrasena;
+window.actualizarContrasena = actualizarContrasena;
 
 try {
   obtenerClienteSupabase();
