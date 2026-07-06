@@ -92,9 +92,8 @@ function obtenerClienteSupabase() {
   return _supabaseClient;
 }
 
-async function obtenerSesionActual(options = {}) {
+async function obtenerSesionActual() {
   try {
-    const permitirSesionDeRecuperacion = Boolean(options.permitirSesionDeRecuperacion);
     const supabase = obtenerClienteSupabase();
     const { data, error } = await supabase.auth.getSession();
 
@@ -104,7 +103,7 @@ async function obtenerSesionActual(options = {}) {
     }
 
     if (!data.session) return null;
-    if (permitirSesionDeRecuperacion || _sesionPermitidaEnEsteDispositivo()) return data.session;
+    if (_sesionPermitidaEnEsteDispositivo()) return data.session;
 
     await _cerrarSesionLocal(supabase);
     return null;
@@ -157,33 +156,6 @@ async function cerrarSesion(options = {}) {
   const { error } = await supabase.auth.signOut();
   if (error) throw error;
   if (options.redirigir !== false) window.location.href = SUPABASE_LOGIN_PAGE;
-}
-
-async function recuperarContrasena(email) {
-  const supabase = obtenerClienteSupabase();
-  const redirectTo = new URL(SUPABASE_LOGIN_PAGE, window.location.href);
-  redirectTo.searchParams.set('recovery', '1');
-
-  return supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: redirectTo.toString()
-  });
-}
-
-async function actualizarContrasena(password) {
-  const supabase = obtenerClienteSupabase();
-  const { data, error: sessionError } = await supabase.auth.getSession();
-
-  if (sessionError) return { data: null, error: sessionError };
-  if (!data.session) {
-    return {
-      data: null,
-      error: new Error('El enlace de recuperacion no es valido o ya vencio. Solicita uno nuevo.')
-    };
-  }
-
-  const result = await supabase.auth.updateUser({ password });
-  if (!result.error) _limpiarPreferenciaSesion();
-  return result;
 }
 
 async function _getSessionAccessToken() {
@@ -412,8 +384,6 @@ window.obtenerSesionActual = obtenerSesionActual;
 window.iniciarSesion = iniciarSesion;
 window.protegerPagina = protegerPagina;
 window.cerrarSesion = cerrarSesion;
-window.recuperarContrasena = recuperarContrasena;
-window.actualizarContrasena = actualizarContrasena;
 
 try {
   obtenerClienteSupabase();
